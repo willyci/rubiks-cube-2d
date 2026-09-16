@@ -1,0 +1,63 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>换个角度，解开魔方 · Rubik's Circles</title>
+  <link rel="stylesheet" href="./styles.css" />
+  <script type="importmap">
+  {
+    "imports": {
+      "three": "https://cdn.jsdelivr.net/npm/three@0.169.0/build/three.module.js",
+      "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.169.0/examples/jsm/"
+    }
+  }
+  </script>
+</head>
+<body>
+  <div id="app"></div>
+
+  <header id="title">
+    <h1>换个角度，解开魔方</h1>
+    <p>One cube, two pictures: the solid puzzle below, and every sticker as a dot on its face's circle above.</p>
+  </header>
+
+  <div id="hud">
+    <div class="panel">
+      <div class="row label">Moves</div>
+      <div class="row grid" id="moves"></div>
+
+      <div class="row label">Actions</div>
+      <div class="row">
+        <button data-act="scramble">Scramble</button>
+        <button data-act="solve">Solve</button>
+        <button data-act="undo">Undo</button>
+        <button data-act="reset">Reset</button>
+      </div>
+
+      <div class="row label">View</div>
+      <div class="row">
+        <button data-view="both" class="view active">Both</button>
+        <button data-view="cube" class="view">Cube</button>
+        <button data-view="flat" class="view">Circles</button>
+      </div>
+
+      <div class="row label">Speed <span id="speedVal">1.0×</span></div>
+      <div class="row"><input id="speed" type="range" min="0.25" max="3" step="0.05" value="1" /></div>
+
+      <div class="row">
+        <label class="check"><input id="spin" type="checkbox" /> Auto-rotate</label>
+      </div>
+
+      <div class="row hint">
+        Keys: <b>U D L R F B</b> turn · <b>Shift</b>+key reverses<br />
+        <b>Enter</b> scramble · <b>Backspace</b> undo · <b>Esc</b> reset
+      </div>
+    </div>
+  </div>
+
+  <div id="ticker"><span id="lastMove">—</span></div>
+
+  <script type="module" src="./src/main.js"></script>
+</body>
+</html>
