@@ -1396,7 +1396,7 @@
             for (const p of members) {
               this.root.attach(p.solid);
               p.coord.applyAxisAngle(axis, angle).round();
-              p.quat.premultiply(new THREE.Quaternion().setFromAxisAngle(axis, angle));
+              p.quat.premultiply(new THREE.Quaternion().setFromAxisAngle(axis, angle)).normalize();
               this._placePiece(p);
             }
             this.root.remove(pivot);
@@ -1413,7 +1413,7 @@
         for (const p of this.pieces) {
           if (p.coord.dot(norm) === 1) {
             p.coord.applyQuaternion(q).round();
-            p.quat.premultiply(q);
+            p.quat.premultiply(q).normalize();
             this._placePiece(p);
           }
         }
@@ -1555,7 +1555,11 @@
       /**
        * Start 2D animation for turn.
        * Lights up the active ring in orange.
-       * All balls on the same circle ALWAYS move in the exact same direction.
+       * Every bead on the active ring travels the same way round it, which is
+       * what keeps the flow readable. The arc lengths differ, though: the rest
+       * positions are circle-circle intersections and those are not evenly
+       * spaced, so a bead crossing the wide gap sweeps much further than its
+       * neighbours in the same quarter turn.
        */
       beginMove(face, turns) {
         const axisMap = {
@@ -1672,6 +1676,10 @@
     }
 
     // ------------------------------------------------------------- Move Engine & Animation Queue
+    // A generous backlog: enough that normal fast clicking is never dropped,
+    // capped so a stuck control cannot grow the queue without bound.
+    const MAX_USER_QUEUE = 64;
+
     class MoveEngine {
       constructor(cube) {
         this.cube = cube;
@@ -1682,13 +1690,61 @@
         this.isScrambling = false;
         this.onMove = null;
         this.onHistoryChange = null;
+        this.onQueueFull = null;
+      }
+
+      /** True while a turn is animating or any move is still queued. */
+      get busy() {
+        return this.active !== null || this.queue.length > 0;
       }
 
       push(move, source = 'user') {
-        if (!move) return;
-        // Cap user queue backlog to prevent freeze on rapid button spamming
-        if (source === 'user' && this.queue.length >= 24) return;
+        if (!move) return false;
+        // Cap the backlog so a stuck control cannot freeze the page - but say
+        // so, instead of dropping the move silently.
+        if (source === 'user' && this.queue.length >= MAX_USER_QUEUE) {
+          if (this.onQueueFull) this.onQueueFull(this.queue.length);
+          return false;
+        }
         this.queue.push({ ...move, source });
+        return true;
+      }
+
+      /**
+       * Record a move that has just been applied to the cube. `history` is the
+       * app's only model of the cube's state, so it may only be written when
+       * the cube actually moves - never in advance of it.
+       */
+      _recordFinished(move) {
+        if (move.source === 'user' || move.source === 'scramble') {
+          this.history.push({ face: move.face, turns: move.turns });
+        } else if (move.source === 'rollback' && Number.isInteger(move.retires)) {
+          // This move has just undone history[move.retires]; only now is it
+          // safe to forget that entry.
+          if (this.history.length > move.retires) this.history.length = move.retires;
+        }
+        if (this.onHistoryChange) this.onHistoryChange();
+      }
+
+      /**
+       * Bring the cube up to date with everything the user already asked for:
+       * land the turn in flight, then apply whatever is still queued. Nothing
+       * the user clicked is thrown away, and history stays truthful throughout.
+       */
+      flushPending() {
+        if (this.active) {
+          const move = this.active.move;
+          this.active.handle.setProgress(1);
+          this.active.handle.finish();
+          this.active = null;
+          this._recordFinished(move);
+        }
+        while (this.queue.length) {
+          const m = this.queue.shift();
+          this.cube.applyMove(m.face, m.turns);
+          this._recordFinished(m);
+        }
+        this.isScrambling = false;
       }
 
       pushSequence(tokens, source = 'user') {
@@ -1719,6 +1775,11 @@
         return { face: m.face, turns };
       }
 
+      /**
+       * Start over. The empty history has to mean "solved", so the cube is
+       * returned with it - otherwise every later Solve and every generated
+       * algorithm would be computed against a cube that no longer matches.
+       */
       clear() {
         this.queue.length = 0;
         this.isScrambling = false;
@@ -1728,6 +1789,7 @@
           this.active = null;
         }
         this.history.length = 0;
+        this.cube.reset();
         if (this.onHistoryChange) this.onHistoryChange();
       }
 
@@ -1755,17 +1817,20 @@
 
       fastFinishScramble() {
         if (!this.isScrambling) return;
-        if (this.active && this.active.move.source === 'scramble') {
+        // The turn in flight comes before anything queued, so it has to land
+        // first or the scramble composes in the wrong order.
+        if (this.active) {
+          const move = this.active.move;
           this.active.handle.setProgress(1);
           this.active.handle.finish();
-          this.history.push({ face: this.active.move.face, turns: this.active.move.turns });
           this.active = null;
+          this._recordFinished(move);
         }
         const remainingQueue = [];
         for (const m of this.queue) {
           if (m.source === 'scramble') {
             this.cube.applyMove(m.face, m.turns);
-            this.history.push({ face: m.face, turns: m.turns });
+            this._recordFinished(m);
           } else {
             remainingQueue.push(m);
           }
@@ -1774,53 +1839,32 @@
         this.isScrambling = false;
       }
 
+      /**
+       * Walk the cube back to `targetCount` recorded moves by queueing the
+       * inverse of every entry above it. Each queued move carries the index it
+       * retires, and history shrinks only when that move actually lands - so
+       * interrupting a rollback can never strand the cube with a history that
+       * no longer describes it.
+       */
       rollbackTo(targetCount) {
-        if (this.isScrambling) this.fastFinishScramble();
-        if (this.active) {
-          this.active.handle.setProgress(1);
-          this.active.handle.finish();
-          if (this.active.move.source === 'user' || this.active.move.source === 'scramble') {
-            this.history.push({ face: this.active.move.face, turns: this.active.move.turns });
-          }
-          this.active = null;
-        }
-        this.queue.length = 0;
-
+        this.flushPending();
         const currentLen = this.history.length;
-        if (targetCount < 0 || targetCount > currentLen) return;
-        if (targetCount === currentLen) return;
-
-        const movesToUndo = [];
+        if (targetCount < 0 || targetCount >= currentLen) return;
         for (let i = currentLen - 1; i >= targetCount; i--) {
-          movesToUndo.push(this.invert(this.history[i]));
+          this.push({ ...this.invert(this.history[i]), retires: i }, 'rollback');
         }
-
-        this.history = this.history.slice(0, targetCount);
-
-        for (const m of movesToUndo) {
-          this.push(m, 'rollback');
-        }
-
         if (this.onHistoryChange) this.onHistoryChange();
       }
 
       undo() {
-        if (this.isScrambling) this.fastFinishScramble();
+        // Land the in-flight and queued turns first, so "the last move" means
+        // the last move the user can actually see on the cube.
+        this.flushPending();
         if (!this.history.length) return;
         this.rollbackTo(this.history.length - 1);
       }
 
       solve() {
-        if (this.isScrambling) this.fastFinishScramble();
-        if (this.active) {
-          this.active.handle.setProgress(1);
-          this.active.handle.finish();
-          if (this.active.move.source === 'user' || this.active.move.source === 'scramble') {
-            this.history.push({ face: this.active.move.face, turns: this.active.move.turns });
-          }
-          this.active = null;
-        }
-        this.queue.length = 0;
         this.rollbackTo(0);
       }
 
@@ -1835,11 +1879,7 @@
             const active = this.active;
             this.active = null;
             active.handle.finish();
-            const source = active.move.source;
-            if (source === 'user' || source === 'scramble') {
-              this.history.push({ face: active.move.face, turns: active.move.turns });
-              if (this.onHistoryChange) this.onHistoryChange();
-            }
+            this._recordFinished(active.move);
             if (this.onMove) this.onMove(active.move);
           }
           return;
@@ -2124,26 +2164,9 @@
     }
 
     function updateSolutionForCurrentCube() {
-      // 1. Finish active move and flush queue
-      if (engine.isScrambling) engine.fastFinishScramble();
-      if (engine.active) {
-        engine.active.handle.setProgress(1);
-        engine.active.handle.finish();
-        if (engine.active.move.source === 'user' || engine.active.move.source === 'scramble' || engine.active.move.source === 'algorithm') {
-          engine.history.push({ face: engine.active.move.face, turns: engine.active.move.turns });
-        }
-        engine.active = null;
-      }
-      while (engine.queue.length > 0) {
-        const m = engine.queue.shift();
-        const handle = engine.cube.beginMove(m.face, m.turns);
-        handle.setProgress(1);
-        handle.finish();
-        if (m.source === 'user' || m.source === 'scramble' || m.source === 'algorithm') {
-          engine.history.push({ face: m.face, turns: m.turns });
-        }
-      }
-      if (engine.onHistoryChange) engine.onHistoryChange();
+      // 1. Land everything already asked for, so the solution describes the
+      //    cube the user is looking at.
+      engine.flushPending();
 
       // 2. Invert history and simplify
       const rawInverted = engine.history.slice().reverse().map((m) => engine.invert(m));
@@ -2258,12 +2281,16 @@
       { face: 'L', turns: -1, label: "L'" },
     ];
 
-    let lastUserMoveTime = 0;
-    function triggerUserMove(move) {
+    // One timestamp per control rather than one for the whole app: two
+    // different buttons pressed in quick succession are two moves, not one
+    // bouncing button. A single control still cannot double-fire within 60ms.
+    const lastMoveAt = new Map();
+    function triggerUserMove(move, controlId) {
       if (!move) return;
       const now = Date.now();
-      if (now - lastUserMoveTime < 60) return; // Ignore accidental bounce <60ms
-      lastUserMoveTime = now;
+      const key = controlId || ('move:' + move.face + move.turns);
+      if (now - (lastMoveAt.get(key) || 0) < 60) return;
+      lastMoveAt.set(key, now);
       onUserInteractedWithMoveOrMethod();
       engine.push(move, 'user');
     }
@@ -2275,17 +2302,24 @@
       btn.dataset.turns = m.turns;
       btn.textContent = m.label;
       btn.addEventListener('click', () => {
-        triggerUserMove({ face: m.face, turns: m.turns });
+        triggerUserMove({ face: m.face, turns: m.turns }, 'hud:' + m.label);
       });
       movesContainer.appendChild(btn);
     }
 
-    let lastActionTime = 0;
+    // Each action keeps its own timestamp: pressing Undo must never swallow
+    // the Solve that follows it.
+    const lastActionAt = new Map();
+    function actionAllowed(name, ms) {
+      const now = Date.now();
+      if (now - (lastActionAt.get(name) || 0) < ms) return false;
+      lastActionAt.set(name, now);
+      return true;
+    }
+
     const actions = {
       scramble: () => {
-        const now = Date.now();
-        if (now - lastActionTime < 180) return;
-        lastActionTime = now;
+        if (!actionAllowed('scramble', 180)) return;
         if (scrambleBtn && scrambleBtn.disabled) return;
         isScrambled = true;
         setScrambleDisabled(false);
@@ -2295,24 +2329,18 @@
         engine.scramble(profile.scramble);
       },
       solve: () => {
-        const now = Date.now();
-        if (now - lastActionTime < 180) return;
-        lastActionTime = now;
-        if (cube.isSolved() && engine.queue.length === 0) return;
+        if (!actionAllowed('solve', 180)) return;
+        if (cube.isSolved() && !engine.busy) return;
         resetScrambleState();
         engine.solve();
       },
       undo: () => {
-        const now = Date.now();
-        if (now - lastActionTime < 80) return;
-        lastActionTime = now;
+        if (!actionAllowed('undo', 80)) return;
         onUserInteractedWithMoveOrMethod();
         engine.undo();
       },
       reset: () => {
-        const now = Date.now();
-        if (now - lastActionTime < 150) return;
-        lastActionTime = now;
+        if (!actionAllowed('reset', 150)) return;
         resetScrambleState();
         engine.clear();
         cube.reset();
@@ -2385,6 +2413,16 @@
         rotateCubeView(-Math.PI / 2, 0);
       }
     });
+
+    // #8: the queue is capped, so say when a click could not be taken rather
+    // than dropping it in silence.
+    let queueFullTimer = null;
+    engine.onQueueFull = () => {
+      if (!ticker) return;
+      ticker.textContent = 'QUEUE FULL - let the cube catch up';
+      if (queueFullTimer) clearTimeout(queueFullTimer);
+      queueFullTimer = setTimeout(() => { queueFullTimer = null; }, 900);
+    };
 
     engine.onMove = (move) => {
       const solved = cube.isSolved();
@@ -2603,7 +2641,7 @@
         const face = btn.dataset.face;
         const turns = parseInt(btn.dataset.turns, 10);
         if (face && !isNaN(turns)) {
-          triggerUserMove({ face, turns });
+          triggerUserMove({ face, turns }, 'circle:' + btn.id);
         }
       });
     });
@@ -3130,7 +3168,7 @@
         e.stopPropagation();
         const { face, turns } = hits[0].object.userData;
         if (face && turns) {
-          triggerUserMove({ face, turns });
+          triggerUserMove({ face, turns }, 'arrow:' + hits[0].object.uuid);
         }
       }
     });

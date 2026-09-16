@@ -1663,7 +1663,11 @@
       /**
        * Start 2D animation for turn.
        * Lights up the active ring in orange.
-       * All balls on the same circle ALWAYS move in the exact same direction.
+       * Every bead on the active ring travels the same way round it, which is
+       * what keeps the flow readable. The arc lengths differ, though: the rest
+       * positions are circle-circle intersections and those are not evenly
+       * spaced, so a bead crossing the wide gap sweeps much further than its
+       * neighbours in the same quarter turn.
        */
       beginMove(face, turns) {
         const axisMap = {
@@ -1811,6 +1815,10 @@
     }
 
     // ------------------------------------------------------------- Move Engine
+    // A generous backlog: enough that normal fast clicking is never dropped,
+    // capped so a stuck control cannot grow the queue without bound.
+    const MAX_USER_QUEUE = 64;
+
     class MoveEngine {
       constructor(cube) {
         this.cube = cube;
@@ -1821,6 +1829,7 @@
         this.history = [];
         this.onMove = null;
         this.onHistoryChange = null;
+        this.onQueueFull = null;
         this.isScrambling = false;
       }
 
@@ -1829,10 +1838,52 @@
       }
 
       push(move, source = 'user') {
-        if (!move) return;
-        // Cap user queue backlog to prevent freeze on rapid button spamming
-        if (source === 'user' && this.queue.length >= 24) return;
+        if (!move) return false;
+        // Cap the backlog so a stuck control cannot freeze the page - but say
+        // so, instead of dropping the move silently.
+        if (source === 'user' && this.queue.length >= MAX_USER_QUEUE) {
+          if (this.onQueueFull) this.onQueueFull(this.queue.length);
+          return false;
+        }
         this.queue.push({ ...move, source });
+        return true;
+      }
+
+      /**
+       * Record a move that has just been applied to the cube. `history` is the
+       * app's only model of the cube's state, so it may only be written when
+       * the cube actually moves - never in advance of it.
+       */
+      _recordFinished(move) {
+        if (move.source === 'user' || move.source === 'scramble') {
+          this.history.push({ face: move.face, turns: move.turns });
+        } else if (move.source === 'rollback' && Number.isInteger(move.retires)) {
+          // This move has just undone history[move.retires]; only now is it
+          // safe to forget that entry.
+          if (this.history.length > move.retires) this.history.length = move.retires;
+        }
+        if (this.onHistoryChange) this.onHistoryChange();
+      }
+
+      /**
+       * Bring the cube up to date with everything the user already asked for:
+       * land the turn in flight, then apply whatever is still queued. Nothing
+       * the user clicked is thrown away, and history stays truthful throughout.
+       */
+      flushPending() {
+        if (this.active) {
+          const move = this.active.move;
+          this.active.handle.setProgress(1);
+          this.active.handle.finish();
+          this.active = null;
+          this._recordFinished(move);
+        }
+        while (this.queue.length) {
+          const m = this.queue.shift();
+          this.cube.applyMove(m.face, m.turns);
+          this._recordFinished(m);
+        }
+        this.isScrambling = false;
       }
 
       pushSequence(tokens, source = 'user') {
@@ -1885,17 +1936,20 @@
 
       fastFinishScramble() {
         if (!this.isScrambling) return;
-        if (this.active && this.active.move.source === 'scramble') {
+        // The turn in flight comes before anything queued, so it has to land
+        // first or the scramble composes in the wrong order.
+        if (this.active) {
+          const move = this.active.move;
           this.active.handle.setProgress(1);
           this.active.handle.finish();
-          this.history.push({ face: this.active.move.face, turns: this.active.move.turns });
           this.active = null;
+          this._recordFinished(move);
         }
         const remainingQueue = [];
         for (const m of this.queue) {
           if (m.source === 'scramble') {
             this.cube.applyMove(m.face, m.turns);
-            this.history.push({ face: m.face, turns: m.turns });
+            this._recordFinished(m);
           } else {
             remainingQueue.push(m);
           }
@@ -1904,57 +1958,40 @@
         this.isScrambling = false;
       }
 
+      /**
+       * Walk the cube back to `targetCount` recorded moves by queueing the
+       * inverse of every entry above it. Each queued move carries the index it
+       * retires, and history shrinks only when that move actually lands - so
+       * interrupting a rollback can never strand the cube with a history that
+       * no longer describes it.
+       */
       rollbackTo(targetCount) {
-        if (this.isScrambling) this.fastFinishScramble();
-        if (this.active) {
-          this.active.handle.setProgress(1);
-          this.active.handle.finish();
-          if (this.active.move.source === 'user' || this.active.move.source === 'scramble') {
-            this.history.push({ face: this.active.move.face, turns: this.active.move.turns });
-          }
-          this.active = null;
-        }
-        this.queue.length = 0;
-
+        this.flushPending();
         const currentLen = this.history.length;
-        if (targetCount < 0 || targetCount > currentLen) return;
-        if (targetCount === currentLen) return; // already at this step
-
-        const movesToUndo = [];
+        if (targetCount < 0 || targetCount >= currentLen) return;
         for (let i = currentLen - 1; i >= targetCount; i--) {
-          movesToUndo.push(this.invert(this.history[i]));
+          this.push({ ...this.invert(this.history[i]), retires: i }, 'rollback');
         }
-
-        this.history = this.history.slice(0, targetCount);
-
-        for (const m of movesToUndo) {
-          this.push(m, 'rollback');
-        }
-
         if (this.onHistoryChange) this.onHistoryChange();
       }
 
       undo() {
-        if (this.isScrambling) this.fastFinishScramble();
+        // Land the in-flight and queued turns first, so "the last move" means
+        // the last move the user can actually see on the cube.
+        this.flushPending();
         if (!this.history.length) return;
         this.rollbackTo(this.history.length - 1);
       }
 
       solve() {
-        if (this.isScrambling) this.fastFinishScramble();
-        if (this.active) {
-          this.active.handle.setProgress(1);
-          this.active.handle.finish();
-          this.history.push({ face: this.active.move.face, turns: this.active.move.turns });
-          this.active = null;
-        }
-        this.queue.length = 0;
-        const moves = this.history.slice().reverse().map((m) => this.invert(m));
-        this.history.length = 0;
-        for (const m of moves) this.push(m, 'replay');
-        if (this.onHistoryChange) this.onHistoryChange();
+        this.rollbackTo(0);
       }
 
+      /**
+       * Start over. The empty history has to mean "solved", so the cube is
+       * returned with it - otherwise every later Solve and every generated
+       * algorithm would be computed against a cube that no longer matches.
+       */
       clear() {
         this.queue.length = 0;
         this.isScrambling = false;
@@ -1964,6 +2001,7 @@
           this.active = null;
         }
         this.history.length = 0;
+        this.cube.reset();
         if (this.onHistoryChange) this.onHistoryChange();
       }
 
@@ -1992,17 +2030,11 @@
         if (t >= 1) {
           this.active = null;
           handle.finish();
-          if (move.source === 'user' || move.source === 'scramble') {
-            this.history.push({ face: move.face, turns: move.turns });
-            if (this.onHistoryChange) this.onHistoryChange();
-          }
+          this._recordFinished(move);
           if (this.queue.length === 0 && this.isScrambling) {
             this.isScrambling = false;
           }
           if (this.onMove) this.onMove(move);
-          if (this.queue.length === 0 && (move.source === 'rollback' || move.source === 'replay')) {
-            if (this.onHistoryChange) this.onHistoryChange();
-          }
         }
       }
     }
@@ -2084,125 +2116,130 @@
         name: "打乱 #1 · 经典竞速态 (Classic Speedcube)",
         scramble: "F R U' R' U R U R2 F' R U R U' R' F U R U' R' F' F' U' F U R U R' U' B2 D2 F' R2 D'",
         layer: [
-          { title: "1. 底面白色十字 (White Cross)", badge: "Step 1", desc: "还原底层 4 颗白色棱块，对齐侧面中心。", alg: "D R2 F D2 B2" },
-          { title: "2. 底层角块归位 (First Layer)", badge: "Step 2", desc: "右手四步法将底层白色角块归位。", alg: "U R U' R'" },
-          { title: "3. 中层棱块归位 (Middle Layer)", badge: "Step 3", desc: "将顶层棱块送入中层右侧槽位。", alg: "U' F' U F" },
-          { title: "4. 顶层黄色十字 (Yellow Cross)", badge: "Step 4", desc: "翻转顶层棱块形成黄色十字。", alg: "F R U R' U' F'" },
-          { title: "5. 顶面黄色翻色 (OLL Sune)", badge: "Step 5", desc: "小鱼公式翻齐顶面黄色。", alg: "R U R' U'" },
-          { title: "6. 顶角位置调整 (PLL Corners)", badge: "Step 6", desc: "经典 T-Perm 交换两角位置。", alg: "R' F R2 U' R'" },
-          { title: "7. 顶棱复原 (PLL Edges)", badge: "Step 7", desc: "最终调换顶棱，完成魔方六面全还原！", alg: "U' R U R' F'" },
+          { title: "1. 底面白色十字 (White Cross)", badge: "Step 1", desc: "还原底层 4 颗白色棱块，对齐侧面中心。" },
+          { title: "2. 底层角块归位 (First Layer)", badge: "Step 2", desc: "右手四步法将底层白色角块归位。" },
+          { title: "3. 中层棱块归位 (Middle Layer)", badge: "Step 3", desc: "将顶层棱块送入中层右侧槽位。" },
+          { title: "4. 顶层黄色十字 (Yellow Cross)", badge: "Step 4", desc: "翻转顶层棱块形成黄色十字。" },
+          { title: "5. 顶面黄色翻色 (OLL Sune)", badge: "Step 5", desc: "小鱼公式翻齐顶面黄色。" },
+          { title: "6. 顶角位置调整 (PLL Corners)", badge: "Step 6", desc: "经典 T-Perm 交换两角位置。" },
+          { title: "7. 顶棱复原 (PLL Edges)", badge: "Step 7", desc: "最终调换顶棱，完成魔方六面全还原！" },
         ],
         cfop: [
-          { title: "C - Cross (底棱归位)", badge: "Step 1", desc: "在底层完成白十字，对齐侧面四中心块。", alg: "D R2 F D2 B2" },
-          { title: "F - F2L (前两层 41 Cases)", badge: "Step 2", desc: "4 组角棱对同时配对入槽，一步完成前两层。", alg: "U R U' R' U' F' U F" },
-          { title: "O - OLL (顶层定向 57 Cases)", badge: "Step 3", desc: "顶面黄色色块全部朝上。", alg: "F R U R' U' F' R U R' U'" },
-          { title: "P - PLL (顶层排列 21 Cases)", badge: "Step 4", desc: "顶层块位置一步排列，彻底复原魔方。", alg: "R' F R2 U' R' U' R U R' F'" },
+          { title: "C - Cross (底棱归位)", badge: "Step 1", desc: "在底层完成白十字，对齐侧面四中心块。" },
+          { title: "F - F2L (前两层 41 Cases)", badge: "Step 2", desc: "4 组角棱对同时配对入槽，一步完成前两层。" },
+          { title: "O - OLL (顶层定向 57 Cases)", badge: "Step 3", desc: "顶面黄色色块全部朝上。" },
+          { title: "P - PLL (顶层排列 21 Cases)", badge: "Step 4", desc: "顶层块位置一步排列，彻底复原魔方。" },
         ],
         roux: [
-          { title: "Step 1: First Block (FB 第一桥)", badge: "Step 1", desc: "在左侧搭建 1x2x3 桥块。", alg: "D R2 F D2" },
-          { title: "Step 2: Second Block (SB 第二桥)", badge: "Step 2", desc: "在右侧搭建 1x2x3 桥块。", alg: "B2 U R U' R'" },
-          { title: "Step 3: CMLL (顶角归位)", badge: "Step 3", desc: "顶角定向与排列，保持中轴自由。", alg: "U' F' U F F R U R' U' F'" },
-          { title: "Step 4: LSE (最后六棱)", badge: "Step 4", desc: "还原中轴与最后六棱，彻底复原魔方。", alg: "R U R' U' R' F R2 U' R' U' R U R' F'" },
+          { title: "Step 1: First Block (FB 第一桥)", badge: "Step 1", desc: "在左侧搭建 1x2x3 桥块。" },
+          { title: "Step 2: Second Block (SB 第二桥)", badge: "Step 2", desc: "在右侧搭建 1x2x3 桥块。" },
+          { title: "Step 3: CMLL (顶角归位)", badge: "Step 3", desc: "顶角定向与排列，保持中轴自由。" },
+          { title: "Step 4: LSE (最后六棱)", badge: "Step 4", desc: "还原中轴与最后六棱，彻底复原魔方。" },
         ],
         zz: [
-          { title: "Step 1: EOLine / EOBlock", badge: "Step 1", desc: "全魔方棱块定向 + 底线棱归位。", alg: "D R2 F D2 B2" },
-          { title: "Step 2: ZZ-F2L (左右块装配)", badge: "Step 2", desc: "仅用 <R, U, L> 快速装配左右两侧块。", alg: "U R U' R' U' F' U F" },
-          { title: "Step 3: LL (顶层收尾)", badge: "Step 3", desc: "天然十字存在下的 COLL 与 EPLL 快速收尾。", alg: "F R U R' U' F' R U R' U' R' F R2 U' R' U' R U R' F'" },
+          { title: "Step 1: EOLine / EOBlock", badge: "Step 1", desc: "全魔方棱块定向 + 底线棱归位。" },
+          { title: "Step 2: ZZ-F2L (左右块装配)", badge: "Step 2", desc: "仅用 <R, U, L> 快速装配左右两侧块。" },
+          { title: "Step 3: LL (顶层收尾)", badge: "Step 3", desc: "天然十字存在下的 COLL 与 EPLL 快速收尾。" },
         ],
       },
       {
         name: "打乱 #2 · 小鱼与U-Perm组合 (Sune & U-Perm)",
         scramble: "R2 U R U R' U' R' U' R' U' R2 B2 R F R' B2 R' F' R R U2 R' U' R' U' R F R U' R' U' F' U' F U R U R' U' R U2 R' U' L2 U' F2 D' R2",
         layer: [
-          { title: "1. 底面白色十字 (White Cross)", badge: "Step 1", desc: "底层 4 白棱入位，形成对齐的白色十字。", alg: "R2 D F2 U L2" },
-          { title: "2. 底层角块归位 (First Layer)", badge: "Step 2", desc: "右手公式快速入角到对应白底槽位。", alg: "R U2 R' U" },
-          { title: "3. 中层棱块归位 (Middle Layer)", badge: "Step 3", desc: "中层棱块无黄棱精确入槽。", alg: "R U' R' U' F' U F" },
-          { title: "4. 顶层黄色十字 (Yellow Cross)", badge: "Step 4", desc: "小拐弯公式一举翻出黄色十字。", alg: "F U R U' R' F'" },
-          { title: "5. 顶面黄色翻色 (OLL Sune)", badge: "Step 5", desc: "经典小鱼公式顶面黄色全朝上。", alg: "R U R' U R U2 R'" },
-          { title: "6. 顶角位置调整 (PLL Corners)", badge: "Step 6", desc: "调整顶角使同色角块对齐。", alg: "R' F R' B2 R F' R' B2" },
-          { title: "7. 顶棱复原 (PLL Edges)", badge: "Step 7", desc: "U-Perm 三棱顺时针换位，彻底全还原！", alg: "R2 U' R U R U R U' R' U' R2" },
+          { title: "1. 底面白色十字 (White Cross)", badge: "Step 1", desc: "底层 4 白棱入位，形成对齐的白色十字。" },
+          { title: "2. 底层角块归位 (First Layer)", badge: "Step 2", desc: "右手公式快速入角到对应白底槽位。" },
+          { title: "3. 中层棱块归位 (Middle Layer)", badge: "Step 3", desc: "中层棱块无黄棱精确入槽。" },
+          { title: "4. 顶层黄色十字 (Yellow Cross)", badge: "Step 4", desc: "小拐弯公式一举翻出黄色十字。" },
+          { title: "5. 顶面黄色翻色 (OLL Sune)", badge: "Step 5", desc: "经典小鱼公式顶面黄色全朝上。" },
+          { title: "6. 顶角位置调整 (PLL Corners)", badge: "Step 6", desc: "调整顶角使同色角块对齐。" },
+          { title: "7. 顶棱复原 (PLL Edges)", badge: "Step 7", desc: "U-Perm 三棱顺时针换位，彻底全还原！" },
         ],
         cfop: [
-          { title: "C - Cross (底棱归位)", badge: "Step 1", desc: "在底层完成白十字，对齐侧面四中心块。", alg: "R2 D F2 U L2" },
-          { title: "F - F2L (前两层 41 Cases)", badge: "Step 2", desc: "4 组角棱对同时配对入槽，一步完成前两层。", alg: "R U2 R' U R U' R' U' F' U F" },
-          { title: "O - OLL (顶层定向 57 Cases)", badge: "Step 3", desc: "顶面黄色色块全部朝上。", alg: "F U R U' R' F' R U R' U R U2 R'" },
-          { title: "P - PLL (顶层排列 21 Cases)", badge: "Step 4", desc: "顶层块位置一步排列，彻底复原魔方。", alg: "R' F R' B2 R F' R' B2 R2 U' R U R U R U' R' U' R2" },
+          { title: "C - Cross (底棱归位)", badge: "Step 1", desc: "在底层完成白十字，对齐侧面四中心块。" },
+          { title: "F - F2L (前两层 41 Cases)", badge: "Step 2", desc: "4 组角棱对同时配对入槽，一步完成前两层。" },
+          { title: "O - OLL (顶层定向 57 Cases)", badge: "Step 3", desc: "顶面黄色色块全部朝上。" },
+          { title: "P - PLL (顶层排列 21 Cases)", badge: "Step 4", desc: "顶层块位置一步排列，彻底复原魔方。" },
         ],
         roux: [
-          { title: "Step 1: First Block (FB 第一桥)", badge: "Step 1", desc: "在左侧搭建 1x2x3 桥块。", alg: "R2 D F2" },
-          { title: "Step 2: Second Block (SB 第二桥)", badge: "Step 2", desc: "在右侧搭建 1x2x3 桥块。", alg: "U L2 R U2 R' U" },
-          { title: "Step 3: CMLL (顶角归位)", badge: "Step 3", desc: "顶角定向与排列，保持中轴自由。", alg: "R U' R' U' F' U F F U R U' R' F'" },
-          { title: "Step 4: LSE (最后六棱)", badge: "Step 4", desc: "还原中轴与最后六棱，彻底复原魔方。", alg: "R U R' U R U2 R' R' F R' B2 R F' R' B2 R2 U' R U R U R U' R' U' R2" },
+          { title: "Step 1: First Block (FB 第一桥)", badge: "Step 1", desc: "在左侧搭建 1x2x3 桥块。" },
+          { title: "Step 2: Second Block (SB 第二桥)", badge: "Step 2", desc: "在右侧搭建 1x2x3 桥块。" },
+          { title: "Step 3: CMLL (顶角归位)", badge: "Step 3", desc: "顶角定向与排列，保持中轴自由。" },
+          { title: "Step 4: LSE (最后六棱)", badge: "Step 4", desc: "还原中轴与最后六棱，彻底复原魔方。" },
         ],
         zz: [
-          { title: "Step 1: EOLine / EOBlock", badge: "Step 1", desc: "全魔方棱块定向 + 底线棱归位。", alg: "R2 D F2 U L2" },
-          { title: "Step 2: ZZ-F2L (左右块装配)", badge: "Step 2", desc: "仅用 <R, U, L> 快速装配左右两侧块。", alg: "R U2 R' U R U' R' U' F' U F" },
-          { title: "Step 3: LL (顶层收尾)", badge: "Step 3", desc: "天然十字存在下的 COLL 与 EPLL 快速收尾。", alg: "F U R U' R' F' R U R' U R U2 R' R' F R' B2 R F' R' B2 R2 U' R U R U R U' R' U' R2" },
+          { title: "Step 1: EOLine / EOBlock", badge: "Step 1", desc: "全魔方棱块定向 + 底线棱归位。" },
+          { title: "Step 2: ZZ-F2L (左右块装配)", badge: "Step 2", desc: "仅用 <R, U, L> 快速装配左右两侧块。" },
+          { title: "Step 3: LL (顶层收尾)", badge: "Step 3", desc: "天然十字存在下的 COLL 与 EPLL 快速收尾。" },
         ],
       },
       {
         name: "打乱 #3 · 桥式与ZZ优化态 (Roux & ZZ Specialized)",
         scramble: "R U R2 F' R' U R U' R' F' R U' R' L' U2 L U L' U L F' U' R' U' F' U' F U' L' U L U' F U' L' U' L U' L' U L R2 F' D B2 L2",
         layer: [
-          { title: "1. 底面白色十字 (White Cross)", badge: "Step 1", desc: "直接归位白十字四棱块。", alg: "L2 B2 D' F R2" },
-          { title: "2. 底层角块归位 (First Layer)", badge: "Step 2", desc: "将底层角块归位，形成一层纯色。", alg: "U' L' U L" },
-          { title: "3. 中层棱块归位 (Middle Layer)", badge: "Step 3", desc: "左侧棱块入槽复原中层。", alg: "U' L' U L U F U' F'" },
-          { title: "4. 顶层黄色十字 (Yellow Cross)", badge: "Step 4", desc: "顶面一字翻转成黄色十字。", alg: "F R U R' U' F'" },
-          { title: "5. 顶面黄色翻色 (OLL Sune)", badge: "Step 5", desc: "逆小鱼公式翻齐顶面黄色。", alg: "L' U' L U' L' U2 L" },
-          { title: "6. 顶角位置调整 (PLL Corners)", badge: "Step 6", desc: "Jb-Perm 排列顶角位置。", alg: "R U R' F' R U R' U' R' F" },
-          { title: "7. 顶棱复原 (PLL Edges)", badge: "Step 7", desc: "最终调正顶棱，全盘复原！", alg: "R2 U' R'" },
+          { title: "1. 底面白色十字 (White Cross)", badge: "Step 1", desc: "直接归位白十字四棱块。" },
+          { title: "2. 底层角块归位 (First Layer)", badge: "Step 2", desc: "将底层角块归位，形成一层纯色。" },
+          { title: "3. 中层棱块归位 (Middle Layer)", badge: "Step 3", desc: "左侧棱块入槽复原中层。" },
+          { title: "4. 顶层黄色十字 (Yellow Cross)", badge: "Step 4", desc: "顶面一字翻转成黄色十字。" },
+          { title: "5. 顶面黄色翻色 (OLL Sune)", badge: "Step 5", desc: "逆小鱼公式翻齐顶面黄色。" },
+          { title: "6. 顶角位置调整 (PLL Corners)", badge: "Step 6", desc: "Jb-Perm 排列顶角位置。" },
+          { title: "7. 顶棱复原 (PLL Edges)", badge: "Step 7", desc: "最终调正顶棱，全盘复原！" },
         ],
         cfop: [
-          { title: "C - Cross (底棱归位)", badge: "Step 1", desc: "在底层完成白十字，对齐侧面四中心块。", alg: "L2 B2 D' F R2" },
-          { title: "F - F2L (前两层 41 Cases)", badge: "Step 2", desc: "4 组角棱对同时配对入槽，一步完成前两层。", alg: "U' L' U L U' L' U L U F U' F'" },
-          { title: "O - OLL (顶层定向 57 Cases)", badge: "Step 3", desc: "顶面黄色色块全部朝上。", alg: "F R U R' U' F' L' U' L U' L' U2 L" },
-          { title: "P - PLL (顶层排列 21 Cases)", badge: "Step 4", desc: "顶层块位置一步排列，彻底复原魔方。", alg: "R U R' F' R U R' U' R' F R2 U' R'" },
+          { title: "C - Cross (底棱归位)", badge: "Step 1", desc: "在底层完成白十字，对齐侧面四中心块。" },
+          { title: "F - F2L (前两层 41 Cases)", badge: "Step 2", desc: "4 组角棱对同时配对入槽，一步完成前两层。" },
+          { title: "O - OLL (顶层定向 57 Cases)", badge: "Step 3", desc: "顶面黄色色块全部朝上。" },
+          { title: "P - PLL (顶层排列 21 Cases)", badge: "Step 4", desc: "顶层块位置一步排列，彻底复原魔方。" },
         ],
         roux: [
-          { title: "Step 1: First Block (FB 第一桥)", badge: "Step 1", desc: "在左侧搭建 1x2x3 桥块。", alg: "L2 B2 D'" },
-          { title: "Step 2: Second Block (SB 第二桥)", badge: "Step 2", desc: "在右侧搭建 1x2x3 桥块。", alg: "F R2 U' L' U L" },
-          { title: "Step 3: CMLL (顶角归位)", badge: "Step 3", desc: "顶角定向与排列，保持中轴自由。", alg: "U' L' U L U F U' F' F R U R' U' F'" },
-          { title: "Step 4: LSE (最后六棱)", badge: "Step 4", desc: "还原中轴与最后六棱，彻底复原魔方。", alg: "L' U' L U' L' U2 L R U R' F' R U R' U' R' F R2 U' R'" },
+          { title: "Step 1: First Block (FB 第一桥)", badge: "Step 1", desc: "在左侧搭建 1x2x3 桥块。" },
+          { title: "Step 2: Second Block (SB 第二桥)", badge: "Step 2", desc: "在右侧搭建 1x2x3 桥块。" },
+          { title: "Step 3: CMLL (顶角归位)", badge: "Step 3", desc: "顶角定向与排列，保持中轴自由。" },
+          { title: "Step 4: LSE (最后六棱)", badge: "Step 4", desc: "还原中轴与最后六棱，彻底复原魔方。" },
         ],
         zz: [
-          { title: "Step 1: EOLine / EOBlock", badge: "Step 1", desc: "全魔方棱块定向 + 底线棱归位。", alg: "L2 B2 D' F R2" },
-          { title: "Step 2: ZZ-F2L (左右块装配)", badge: "Step 2", desc: "仅用 <R, U, L> 快速装配左右两侧块。", alg: "U' L' U L U' L' U L U F U' F'" },
-          { title: "Step 3: LL (顶层收尾)", badge: "Step 3", desc: "天然十字存在下的 COLL 与 EPLL 快速收尾。", alg: "F R U R' U' F' L' U' L U' L' U2 L R U R' F' R U R' U' R' F R2 U' R'" },
+          { title: "Step 1: EOLine / EOBlock", badge: "Step 1", desc: "全魔方棱块定向 + 底线棱归位。" },
+          { title: "Step 2: ZZ-F2L (左右块装配)", badge: "Step 2", desc: "仅用 <R, U, L> 快速装配左右两侧块。" },
+          { title: "Step 3: LL (顶层收尾)", badge: "Step 3", desc: "天然十字存在下的 COLL 与 EPLL 快速收尾。" },
         ],
       },
       {
         name: "打乱 #4 · 前两层配对态 (F2L Mastery)",
         scramble: "F R U' R' U' R' U' R2 F' R U R U' R' U2 R' U' R U' R' F' U' R' U' F' U F U' R' U R F' R' F R B2 D' L2 F R' D2",
         layer: [
-          { title: "1. 底面白色十字 (White Cross)", badge: "Step 1", desc: "还原底层白十字，侧面颜色对准中心。", alg: "D2 R F' L2 D B2" },
-          { title: "2. 底层角块归位 (First Layer)", badge: "Step 2", desc: "倒槽插入底层白色角块。", alg: "R' F R F'" },
-          { title: "3. 中层棱块归位 (Middle Layer)", badge: "Step 3", desc: "顶层棱块直接送入对应槽位。", alg: "U R U' R' U' F' U F" },
-          { title: "4. 顶层黄色十字 (Yellow Cross)", badge: "Step 4", desc: "六步法翻转出黄色十字。", alg: "F R U R' U' F'" },
-          { title: "5. 顶面黄色翻色 (OLL Sune)", badge: "Step 5", desc: "小鱼公式顶面翻色。", alg: "R U R' U R U2 R'" },
-          { title: "6. 顶角位置调整 (PLL Corners)", badge: "Step 6", desc: "T-Perm 交换顶角。", alg: "R U R' U' R' F R2 U' R'" },
-          { title: "7. 顶棱复原 (PLL Edges)", badge: "Step 7", desc: "收尾调正棱块，六面大功告成！", alg: "U' R U R' F'" },
+          { title: "1. 底面白色十字 (White Cross)", badge: "Step 1", desc: "还原底层白十字，侧面颜色对准中心。" },
+          { title: "2. 底层角块归位 (First Layer)", badge: "Step 2", desc: "倒槽插入底层白色角块。" },
+          { title: "3. 中层棱块归位 (Middle Layer)", badge: "Step 3", desc: "顶层棱块直接送入对应槽位。" },
+          { title: "4. 顶层黄色十字 (Yellow Cross)", badge: "Step 4", desc: "六步法翻转出黄色十字。" },
+          { title: "5. 顶面黄色翻色 (OLL Sune)", badge: "Step 5", desc: "小鱼公式顶面翻色。" },
+          { title: "6. 顶角位置调整 (PLL Corners)", badge: "Step 6", desc: "T-Perm 交换顶角。" },
+          { title: "7. 顶棱复原 (PLL Edges)", badge: "Step 7", desc: "收尾调正棱块，六面大功告成！" },
         ],
         cfop: [
-          { title: "C - Cross (底棱归位)", badge: "Step 1", desc: "在底层完成白十字，对齐侧面四中心块。", alg: "D2 R F' L2 D B2" },
-          { title: "F - F2L (前两层 41 Cases)", badge: "Step 2", desc: "4 组角棱对同时配对入槽，一步完成前两层。", alg: "R' F R F' U R U' R' U' F' U F" },
-          { title: "O - OLL (顶层定向 57 Cases)", badge: "Step 3", desc: "顶面黄色色块全部朝上。", alg: "F R U R' U' F' R U R' U R U2 R'" },
-          { title: "P - PLL (顶层排列 21 Cases)", badge: "Step 4", desc: "顶层块位置一步排列，彻底复原魔方。", alg: "R U R' U' R' F R2 U' R' U' R U R' F'" },
+          { title: "C - Cross (底棱归位)", badge: "Step 1", desc: "在底层完成白十字，对齐侧面四中心块。" },
+          { title: "F - F2L (前两层 41 Cases)", badge: "Step 2", desc: "4 组角棱对同时配对入槽，一步完成前两层。" },
+          { title: "O - OLL (顶层定向 57 Cases)", badge: "Step 3", desc: "顶面黄色色块全部朝上。" },
+          { title: "P - PLL (顶层排列 21 Cases)", badge: "Step 4", desc: "顶层块位置一步排列，彻底复原魔方。" },
         ],
         roux: [
-          { title: "Step 1: First Block (FB 第一桥)", badge: "Step 1", desc: "在左侧搭建 1x2x3 桥块。", alg: "D2 R F'" },
-          { title: "Step 2: Second Block (SB 第二桥)", badge: "Step 2", desc: "在右侧搭建 1x2x3 桥块。", alg: "L2 D B2 R' F R F'" },
-          { title: "Step 3: CMLL (顶角归位)", badge: "Step 3", desc: "顶角定向与排列，保持中轴自由。", alg: "U R U' R' U' F' U F F R U R' U' F'" },
-          { title: "Step 4: LSE (最后六棱)", badge: "Step 4", desc: "还原中轴与最后六棱，彻底复原魔方。", alg: "R U R' U R U2 R' R U R' U' R' F R2 U' R' U' R U R' F'" },
+          { title: "Step 1: First Block (FB 第一桥)", badge: "Step 1", desc: "在左侧搭建 1x2x3 桥块。" },
+          { title: "Step 2: Second Block (SB 第二桥)", badge: "Step 2", desc: "在右侧搭建 1x2x3 桥块。" },
+          { title: "Step 3: CMLL (顶角归位)", badge: "Step 3", desc: "顶角定向与排列，保持中轴自由。" },
+          { title: "Step 4: LSE (最后六棱)", badge: "Step 4", desc: "还原中轴与最后六棱，彻底复原魔方。" },
         ],
         zz: [
-          { title: "Step 1: EOLine / EOBlock", badge: "Step 1", desc: "全魔方棱块定向 + 底线棱归位。", alg: "D2 R F' L2 D B2" },
-          { title: "Step 2: ZZ-F2L (左右块装配)", badge: "Step 2", desc: "仅用 <R, U, L> 快速装配左右两侧块。", alg: "R' F R F' U R U' R' U' F' U F" },
-          { title: "Step 3: LL (顶层收尾)", badge: "Step 3", desc: "天然十字存在下的 COLL 与 EPLL 快速收尾。", alg: "F R U R' U' F' R U R' U R U2 R' R U R' U' R' F R2 U' R' U' R U R' F'" },
+          { title: "Step 1: EOLine / EOBlock", badge: "Step 1", desc: "全魔方棱块定向 + 底线棱归位。" },
+          { title: "Step 2: ZZ-F2L (左右块装配)", badge: "Step 2", desc: "仅用 <R, U, L> 快速装配左右两侧块。" },
+          { title: "Step 3: LL (顶层收尾)", badge: "Step 3", desc: "天然十字存在下的 COLL 与 EPLL 快速收尾。" },
         ],
       }
     ];
 
     let currentProfileIndex = -1;
+    // The profile whose scramble is currently on the cube. Its step titles
+    // and descriptions are reused, but the algorithms are always derived
+    // from the cube itself - hard-coding them is what let the two disagree.
+    let activeProfile = null;
+    let solutionDueAfterScramble = false;
     const statusBox = document.getElementById('methodScrambleStatus');
     const statusText = document.getElementById('scrambleStatusText');
 
@@ -2346,26 +2383,9 @@
     }
 
     function updateSolutionForCurrentCube() {
-      // 1. Finish active move and flush queue
-      if (engine.isScrambling) engine.fastFinishScramble();
-      if (engine.active) {
-        engine.active.handle.setProgress(1);
-        engine.active.handle.finish();
-        if (engine.active.move.source === 'user' || engine.active.move.source === 'scramble' || engine.active.move.source === 'algorithm') {
-          engine.history.push({ face: engine.active.move.face, turns: engine.active.move.turns });
-        }
-        engine.active = null;
-      }
-      while (engine.queue.length > 0) {
-        const m = engine.queue.shift();
-        const handle = engine.cube.beginMove(m.face, m.turns);
-        handle.setProgress(1);
-        handle.finish();
-        if (m.source === 'user' || m.source === 'scramble' || m.source === 'algorithm') {
-          engine.history.push({ face: m.face, turns: m.turns });
-        }
-      }
-      if (engine.onHistoryChange) engine.onHistoryChange();
+      // 1. Land everything already asked for, so the solution describes the
+      //    cube the user is looking at.
+      engine.flushPending();
 
       // 2. Invert history and simplify
       const rawInverted = engine.history.slice().reverse().map((m) => engine.invert(m));
@@ -2402,13 +2422,15 @@
       ];
 
       const dynamicProfile = {
-        name: simplifiedMoves.length === 0 
-          ? "当前状态 · 完全复原态 (Solved)" 
-          : `当前魔方实时解法 · 最优求解 ${simplifiedMoves.length} 步`,
-        layer: partitionMovesIntoSteps(simplifiedMoves, layerConfigs),
-        cfop: partitionMovesIntoSteps(simplifiedMoves, cfopConfigs),
-        roux: partitionMovesIntoSteps(simplifiedMoves, rouxConfigs),
-        zz: partitionMovesIntoSteps(simplifiedMoves, zzConfigs),
+        name: simplifiedMoves.length === 0
+          ? "当前状态 · 完全复原态 (Solved)"
+          : (activeProfile
+              ? `${activeProfile.name} · 求解 ${simplifiedMoves.length} 步`
+              : `当前魔方实时解法 · 最优求解 ${simplifiedMoves.length} 步`),
+        layer: partitionMovesIntoSteps(simplifiedMoves, activeProfile?.layer || layerConfigs),
+        cfop: partitionMovesIntoSteps(simplifiedMoves, activeProfile?.cfop || cfopConfigs),
+        roux: partitionMovesIntoSteps(simplifiedMoves, activeProfile?.roux || rouxConfigs),
+        zz: partitionMovesIntoSteps(simplifiedMoves, activeProfile?.zz || zzConfigs),
       };
 
       updateAllMethods(dynamicProfile);
@@ -2432,15 +2454,30 @@
       renderMethodSteps('content-zz', profile.zz);
     }
 
+    // Throttle the rebuild, but always run the LAST request: swallowing it
+    // would leave the cards describing a cube that has since moved on.
     let lastSolutionUpdateTime = 0;
+    let solutionUpdateTimer = null;
+    function requestSolutionUpdate() {
+      const wait = 300 - (Date.now() - lastSolutionUpdateTime);
+      if (solutionUpdateTimer) clearTimeout(solutionUpdateTimer);
+      if (wait <= 0) {
+        lastSolutionUpdateTime = Date.now();
+        updateSolutionForCurrentCube();
+        return;
+      }
+      solutionUpdateTimer = setTimeout(() => {
+        solutionUpdateTimer = null;
+        lastSolutionUpdateTime = Date.now();
+        updateSolutionForCurrentCube();
+      }, wait);
+    }
+
     const btnUpdateSolution = document.getElementById('btnUpdateSolution');
     if (btnUpdateSolution) {
       btnUpdateSolution.addEventListener('click', (e) => {
         e.stopPropagation();
-        const now = Date.now();
-        if (now - lastSolutionUpdateTime < 300) return;
-        lastSolutionUpdateTime = now;
-        updateSolutionForCurrentCube();
+        requestSolutionUpdate();
       });
     }
 
@@ -2477,12 +2514,16 @@
       setScrambleDisabled(false);
     }
 
-    let lastUserMoveTime = 0;
-    function triggerUserMove(move) {
+    // One timestamp per control rather than one for the whole app: two
+    // different buttons pressed in quick succession are two moves, not one
+    // bouncing button. A single control still cannot double-fire within 60ms.
+    const lastMoveAt = new Map();
+    function triggerUserMove(move, controlId) {
       if (!move) return;
       const now = Date.now();
-      if (now - lastUserMoveTime < 60) return; // Ignore accidental bounce <60ms
-      lastUserMoveTime = now;
+      const key = controlId || ('move:' + move.face + move.turns);
+      if (now - (lastMoveAt.get(key) || 0) < 60) return;
+      lastMoveAt.set(key, now);
       onUserInteractedWithMoveOrMethod();
       engine.push(move, 'user');
     }
@@ -2493,7 +2534,7 @@
       btn.dataset.face = face;
       btn.textContent = face + suffix;
       btn.addEventListener('click', () => {
-        triggerUserMove(engine.parseMove(face + suffix));
+        triggerUserMove(engine.parseMove(face + suffix), 'hud:' + face + suffix);
       });
       movesBox.appendChild(btn);
     }
@@ -2507,46 +2548,54 @@
         btn.textContent = face + suffix;
         btn.title = `${face}${suffix} · 中间层旋转 (Slice)`;
         btn.addEventListener('click', () => {
-          triggerUserMove(engine.parseMove(face + suffix));
+          triggerUserMove(engine.parseMove(face + suffix), 'hud:' + face + suffix);
         });
         sliceMovesBox.appendChild(btn);
       }
     }
 
-    let lastActionTime = 0;
+    // Each action keeps its own timestamp: pressing Undo must never swallow
+    // the Solve that follows it.
+    const lastActionAt = new Map();
+    function actionAllowed(name, ms) {
+      const now = Date.now();
+      if (now - (lastActionAt.get(name) || 0) < ms) return false;
+      lastActionAt.set(name, now);
+      return true;
+    }
+
     const actions = {
       scramble: () => {
-        const now = Date.now();
-        if (now - lastActionTime < 180) return;
-        lastActionTime = now;
+        if (!actionAllowed('scramble', 180)) return;
         if (scrambleBtn && scrambleBtn.disabled) return;
         isScrambled = true;
         setScrambleDisabled(false);
 
         currentProfileIndex = (currentProfileIndex + 1) % SCRAMBLE_PROFILES.length;
         const profile = SCRAMBLE_PROFILES[currentProfileIndex];
-        updateAllMethods(profile);
+        activeProfile = profile;
+        // The steps are built once the scramble has actually landed on the
+        // cube - see engine.onMove below.
+        solutionDueAfterScramble = true;
+        if (statusText) statusText.textContent = `${profile.name} · 打乱中，解法将在打乱完成后生成…`;
+        if (statusBox) statusBox.classList.add('active');
         engine.scramble(profile.scramble);
       },
       solve: () => {
-        const now = Date.now();
-        if (now - lastActionTime < 180) return;
-        lastActionTime = now;
-        if (cube.isSolved() && engine.queue.length === 0) return;
+        if (!actionAllowed('solve', 180)) return;
+        if (cube.isSolved() && !engine.busy) return;
         resetScrambleState();
         engine.solve();
       },
       undo: () => {
-        const now = Date.now();
-        if (now - lastActionTime < 80) return;
-        lastActionTime = now;
+        if (!actionAllowed('undo', 80)) return;
         onUserInteractedWithMoveOrMethod();
         engine.undo();
       },
       reset: () => {
-        const now = Date.now();
-        if (now - lastActionTime < 150) return;
-        lastActionTime = now;
+        if (!actionAllowed('reset', 150)) return;
+        activeProfile = null;
+        solutionDueAfterScramble = false;
         resetScrambleState();
         engine.clear();
         cube.reset();
@@ -2586,7 +2635,8 @@
       if (e.repeat) return; // Ignore hold-down repeat spam
       const key = e.key.toUpperCase();
       if (FACES.includes(key) || ['M', 'E', 'S'].includes(key)) {
-        triggerUserMove(engine.parseMove(key + (e.shiftKey ? "'" : '')));
+        const token = key + (e.shiftKey ? "'" : '');
+        triggerUserMove(engine.parseMove(token), 'key:' + token);
         e.preventDefault();
         return;
       }
@@ -2612,9 +2662,26 @@
       }
     });
 
+    // #8: the queue is capped, so say when a click could not be taken rather
+    // than dropping it in silence.
+    let queueFullTimer = null;
+    engine.onQueueFull = () => {
+      if (!ticker) return;
+      ticker.textContent = 'QUEUE FULL - let the cube catch up';
+      if (queueFullTimer) clearTimeout(queueFullTimer);
+      queueFullTimer = setTimeout(() => { queueFullTimer = null; }, 900);
+    };
+
     engine.onMove = (move) => {
       const solved = cube.isSolved();
-      ticker.textContent = engine.formatMove(move) + (solved ? '   ·   SOLVED' : '');
+      if (solutionDueAfterScramble && !engine.busy) {
+        solutionDueAfterScramble = false;
+        requestSolutionUpdate();
+      }
+      // Leave a queue-full warning up for a moment instead of overwriting it.
+      if (!queueFullTimer) {
+        ticker.textContent = engine.formatMove(move) + (solved ? '   ·   SOLVED' : '');
+      }
       if (solved) {
         resetScrambleState();
         if (engine.queue.length === 0) {
@@ -2839,7 +2906,7 @@
         const face = btn.dataset.face;
         const turns = parseInt(btn.dataset.turns, 10);
         if (face && !isNaN(turns)) {
-          triggerUserMove({ face, turns });
+          triggerUserMove({ face, turns }, 'circle:' + btn.id);
         }
       });
     });
@@ -3411,7 +3478,7 @@
         e.stopPropagation();
         const { face, turns } = hits[0].object.userData;
         if (face && turns) {
-          triggerUserMove({ face, turns });
+          triggerUserMove({ face, turns }, 'arrow:' + hits[0].object.uuid);
         }
       }
     });
