@@ -1,21 +1,38 @@
 # 换个角度，解开魔方 · Rubik's Circles
 
-A Three.js scene that shows one Rubik's cube twice at the same time:
+A Three.js web application that visualizes a Rubik's cube simultaneously in **3D physical space** and **2D three-ring group projection**:
 
-- **below** — the familiar solid 3×3 puzzle, in 3D;
-- **above** — the same cube drawn flat: three big circles, one per axis,
-  sitting on a triangle and overlapping. A big circle is only the frame of its
-  axis; the two faces of that axis are two smaller circles side by side inside
-  it, the + face towards the outside of the triangle and the − face towards the
-  middle, each carrying that face's eight stickers. The ninth, the fixed centre
-  sticker, rests on a tiny hub ring at the heart of its own circle — so all 54
-  dots are on a circle and none float free. Turning a face spins its own circle
-  and sends the side band arcing across to circles inside the other two big
-  ones. The circle in motion lights up orange.
+- **Below** — the familiar solid puzzle in interactive 3D, featuring on-piece directional rotation badges and realistic lighting.
+- **Above** — the same cube drawn flat across three intersecting circle systems, one per spatial axis. Every sticker rests on a circular track; face and slice rotations smoothly sweep beads along circular arcs and transfer them across intersecting tracks in real time.
+- **Solving Engine & Guide** — real-time step-by-step solution algorithms across multiple speedcubing methods (CFOP, Roux, ZZ, Layer-by-Layer for 3×3; Ortega, CLL, EG for 2×2) with one-click step execution.
 
-The diagram is genuinely 2D: it lives in its own scene with an orthographic
-camera aimed straight down −Z and is drawn into its own viewport, so it stays
-square-on no matter how you orbit the cube underneath.
+---
+
+## Preview
+
+### 3×3 Rubik's Circles (`cubex3.html`)
+
+![3×3 Rubik's Circles - Solved State](assets/cubex3-solved.png)
+
+*3×3 Rubik's Circles in solved state featuring the 2D Three-Ring projection (top), 3D cube with 12-button symmetrical corner & edge directional badges (bottom), and HUD with full face and slice moves (`U`, `D`, `L`, `R`, `F`, `B`, `M`, `E`, `S`).*
+
+---
+
+### Step-by-Step Solving Guide & Scramble Tracking
+
+![3×3 Rubik's Circles - Solving Methods & Scramble Tracking](assets/cubex3-solving.png)
+
+*Scrambled 3×3 cube showing real-time bead distribution on the 2D rings, step-by-step method algorithm cards (White Cross, First Layer, Middle Layer, etc.), and complete move history with colored slice accents.*
+
+---
+
+### 2×2 Pocket Cube Circles (`cubex2.html`)
+
+![2×2 Pocket Cube Circles](assets/cubex2-pocket.png)
+
+*2×2 Pocket Cube representation with 2D circles, level controllers, and speedcubing method guides (Layer, Ortega, CLL, EG).*
+
+---
 
 ## Run it
 
@@ -23,70 +40,77 @@ square-on no matter how you orbit the cube underneath.
 node server.mjs
 ```
 
-Then open <http://localhost:5173>. `npm run dev` does the same thing. There is
-no build step and no `npm install` — `index.html` pulls Three.js r169 from a CDN
-through an import map, and `server.mjs` is a small static file server built on
-`node:http`.
+Then open your browser to:
+- **3×3 Cube**: <http://localhost:5173/cubex3.html>
+- **2×2 Pocket Cube**: <http://localhost:5173/cubex2.html>
+- **Base Version**: <http://localhost:5173/index.html>
+
+`npm run dev` starts the same server. There is no build step and no `npm install` — the app loads Three.js directly via modern ES modules and import maps, and `server.mjs` is a zero-dependency static file server built on `node:http`.
+
+---
 
 ## Controls
 
+### Keyboard Shortcuts
+
 | Input | Action |
 | --- | --- |
-| `U` `D` `L` `R` `F` `B` | quarter turn of that face, clockwise from outside |
-| `Shift` + face key | the same turn reversed (`R'`) |
-| `Enter` / `Backspace` / `Esc` | scramble / undo one move / reset to solved |
-| drag, scroll | orbit and zoom the 3D cube |
-| Both · Cube · Circles | one representation or both |
-| Solve | replays every recorded move backwards until the cube unwinds |
+| `U` `D` `L` `R` `F` `B` | Quarter turn of outer face, clockwise from outside |
+| `M` `E` `S` | Quarter turn of middle slice (`M` follows L, `E` follows D, `S` follows F) |
+| `Shift` + key | Reverse the turn direction (`U'`, `M'`, `S'`, etc.) |
+| `Enter` | Scramble cube using verified tournament profiles |
+| `Backspace` | Undo the previous move |
+| `Esc` | Reset cube to solved state |
+| `↑` `↓` `←` `→` | Rotate 3D camera viewpoint in 30° / 90° increments |
+| Drag & Scroll | Orbit and zoom the 3D cube camera |
 
-From the devtools console: `cube.push("R U R' U'")`, `cube.scramble()`,
-`cube.solve()`.
+### On-Cube 3D Badges & HUD Controls
 
-## How it is put together
+- **Cube Controls Modes**:
+  - **`Corner` (Default)**: 12 directional arrow badges per face arranged on the 4 corner pieces (2 arrows each) and 4 edge pieces (1 arrow each), forming a complete 3×3 navigation grid:
+    - 3 top buttons `[↑]` turn columns up (`L'`, `M'`, `R`)
+    - 3 bottom buttons `[↓]` turn columns down (`L`, `M`, `R'`)
+    - 3 left buttons `[←]` turn rows left (`U`, `E`, `D'`)
+    - 3 right buttons `[→]` turn rows right (`U'`, `E'`, `D`)
+  - **`Edge`**: Bidirectional level-rotation badges at the center of each edge.
+  - **`Hide`**: Hides all on-piece badges for clean inspection.
+- **View Switcher**: Toggle between `Both` (dual 2D/3D split view), `Cube` (full 3D scene), or `Circles` (full 2D diagram).
+- **History Chips**: Click any move in the history panel to roll back to that exact state.
+
+---
+
+## How It Is Put Together
 
 ```
-index.html         markup, import map, HUD
-styles.css         HUD + title styling
-server.mjs         dependency-free static server
-src/config.js      colours, lattice spacing, diagram layout
-src/cube.js        the state of the cube, and the solid 3D body
-src/flat.js        the flat circle diagram, in its own 2D scene
-src/moveEngine.js  move parsing, animation queue, scramble / undo / solve
-src/ui.js          buttons, keyboard, ticker
-src/main.js        scene, lights, the two viewports, render loop
+cubex3.html        Standalone 3×3 app: 3D cube, 2D circles, 12-button controller, solver methods
+cubex2.html        Standalone 2×2 app: 2D circles projection, level controls, EG/Ortega solver
+index.html         Base single-page entry with dual viewports
+styles.css         HUD layout, glassmorphism panel styling, typography
+server.mjs         Zero-dependency static server
+src/config.js      Colors, lattice spacing, diagram radii & centers
+src/cube.js        Cube mathematical state, 26 cubies, quaternion transformations
+src/flat.js        Flat three-ring diagram scene & projection mathematics
+src/moveEngine.js  Move parsing, animation queue, scramble / undo / solve
+src/ui.js          Buttons, keyboard listeners, history ticker
+src/main.js        Scene composition, lights, viewports, render loop
+assets/            Screenshot previews and graphical assets
 ```
 
-### One state, two pictures
+### One State, Two Pictures
 
-`cube.js` owns the only state there is: each of the 26 cubies carries integer
-lattice coordinates plus a quaternion, rewritten exactly after every turn so
-nothing drifts however long you play. A quarter turn is −90° about the face's
-*outward* normal, which is "clockwise seen from outside" for all six faces with
-no special cases. Other views register through `cube.addView()` and are handed
-the same turn to animate, so the two pictures cannot disagree.
+`cube.js` (and the inline engine in `cubex3.html`) owns the authoritative puzzle state: each cubie carries integer lattice coordinates plus a quaternion orientation, rewritten exactly after every turn so nothing drifts however long you play.
 
-### Laying out the circles
+A quarter turn is $-90^\circ$ about the face's *outward* normal, which is "clockwise seen from outside" for all six faces with no special cases. Slices rotate about corresponding central axes ($M \to L$, $E \to D$, $S \to F$). All views register as observers and animate the exact same turn parameters, ensuring the 3D cube and 2D circular diagram are always in 100% agreement.
 
-The cube has three axes, so the diagram has three big circles: U/D at the top,
-R/L lower left, F/B lower right. Each is a bare frame holding its axis's two
-faces as a side-by-side pair — U outward and D inward, R outward and L inward,
-F outward and B inward — which leaves the three − faces meeting in the middle
-of the triangle and the three + faces around the rim. Six face circles, six hub
-rings and three frames: fifteen circles, every dot on one of them.
+### Laying Out the Circles
 
-Where a sticker lands on its ring comes from the cube, not from a table. Each
-face has a right-handed in-plane frame (u, v, n): a cubie's coordinates read
-through it give an angle, and that angle is used directly as the angle on the
-ring. Because the frame is right-handed, every face is drawn as seen from
-*outside* — no face comes out mirrored, and a clockwise turn slides dots
-clockwise on all six rings.
+The cube has three spatial axes, so the diagram has three primary circle systems:
+- **$Y$ axis (U/D)**: Top circle system
+- **$Z$ axis (F/B)**: Bottom-left circle system
+- **$X$ axis (R/L)**: Bottom-right circle system
 
-### Animating a turn
+Each axis contains concentric circles corresponding to outer layers and middle slices ($r_0 - \delta$, $r_0$, $r_0 + \delta$). Sticker positions are determined mathematically by solving circle-circle intersections, placing every bead precisely where the respective planes intersect in projection space.
 
-For each sticker in the turning layer the move quaternion says both where the
-cubie goes and which face the sticker will then show. If the face is unchanged
-— the turning face's own eight — the dot is swept along its circle by exactly
-90°. If it changes, the dot flies to its new circle along a quadratic Bézier
-bowed away from the middle of the diagram, so the crossing streams stay
-readable. A fixed centre sticker never changes circle or angle, so it is left
-where it is.
+### Animating a Turn
+
+During any move, stickers on the rotating layer or slice are smoothly interpolated along their active circular track or face center. As a face or slice completes its turn, the 3D cubies and 2D beads snap into their new permutation, updating the solution steps and move history synchronously.
