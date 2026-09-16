@@ -1609,15 +1609,19 @@
       }
     }
 
-    // ------------------------------------------------------------- 3D Controls (Corner & Edge Modes)
+    // ------------------------------------------------------------- 3D Controls (Corner, Edge & Face Modes)
     const cornerArrowMeshes = [];
     const edgeArrowMeshes = [];
+    const faceArrowMeshes = [];
     const cornerControlsGroup = new THREE.Group();
     const edgeControlsGroup = new THREE.Group();
+    const faceControlsGroup = new THREE.Group();
     cube.root.add(cornerControlsGroup);
     cube.root.add(edgeControlsGroup);
+    cube.root.add(faceControlsGroup);
     cornerControlsGroup.visible = true;
     edgeControlsGroup.visible = false;
+    faceControlsGroup.visible = false;
 
     function create3DArrowTexture(dir) {
       const canvas = document.createElement('canvas');
@@ -1643,9 +1647,13 @@
       ctx.fillStyle = '#ffd700';
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
-      ctx.font = 'bold 74px system-ui, -apple-system, sans-serif';
 
-      const glyphs = { up: '↑', down: '↓', left: '←', right: '→' };
+      const glyphs = { up: '↑', down: '↓', left: '←', right: '→', cw: '↻', ccw: '↺' };
+      if (dir === 'cw' || dir === 'ccw') {
+        ctx.font = 'bold 64px system-ui, -apple-system, sans-serif';
+      } else {
+        ctx.font = 'bold 74px system-ui, -apple-system, sans-serif';
+      }
       ctx.fillText(glyphs[dir] || '↑', 64, 66);
 
       const texture = new THREE.CanvasTexture(canvas);
@@ -1656,7 +1664,9 @@
       up: create3DArrowTexture('up'),
       down: create3DArrowTexture('down'),
       left: create3DArrowTexture('left'),
-      right: create3DArrowTexture('right')
+      right: create3DArrowTexture('right'),
+      cw: create3DArrowTexture('cw'),
+      ccw: create3DArrowTexture('ccw')
     };
 
     const arrowMaterials = {
@@ -1692,6 +1702,26 @@
       }),
       right: new THREE.MeshBasicMaterial({
         map: arrowTextures.right,
+        transparent: true,
+        depthTest: true,
+        depthWrite: false,
+        polygonOffset: true,
+        polygonOffsetFactor: -4,
+        polygonOffsetUnits: -4,
+        side: THREE.FrontSide
+      }),
+      cw: new THREE.MeshBasicMaterial({
+        map: arrowTextures.cw,
+        transparent: true,
+        depthTest: true,
+        depthWrite: false,
+        polygonOffset: true,
+        polygonOffsetFactor: -4,
+        polygonOffsetUnits: -4,
+        side: THREE.FrontSide
+      }),
+      ccw: new THREE.MeshBasicMaterial({
+        map: arrowTextures.ccw,
         transparent: true,
         depthTest: true,
         depthWrite: false,
@@ -1948,6 +1978,22 @@
         edgeControlsGroup.add(mesh);
         edgeArrowMeshes.push(mesh);
       }
+
+      // 3. Build Face Center Rotation Controls (Mode 4 / Controller Type 3)
+      const faceDefs = [
+        { dir: 'ccw', pos: faceCenter.clone().addScaledVector(axes.r, -0.28), move: { face: fName, turns: -1 } },
+        { dir: 'cw',  pos: faceCenter.clone().addScaledVector(axes.r, 0.28),  move: { face: fName, turns: 1 } }
+      ];
+
+      for (const def of faceDefs) {
+        const mesh = new THREE.Mesh(arrowGeo, arrowMaterials[def.dir].clone());
+        mesh.position.copy(def.pos);
+        mesh.quaternion.copy(faceQuat);
+        mesh.renderOrder = 999;
+        mesh.userData = { face: def.move.face, turns: def.move.turns, dir: def.dir };
+        faceControlsGroup.add(mesh);
+        faceArrowMeshes.push(mesh);
+      }
     }
 
     function updateCubeControlsWidgetVisibility() {
@@ -1961,12 +2007,13 @@
       }
     }
 
-    let currentControlMode = 'corner'; // 'none' | 'corner' | 'level'
+    let currentControlMode = 'corner'; // 'none' | 'corner' | 'level' | 'face'
 
     function setCubeControlMode(mode) {
       currentControlMode = mode;
       cornerControlsGroup.visible = (mode === 'corner');
       edgeControlsGroup.visible = (mode === 'level');
+      faceControlsGroup.visible = (mode === 'face');
 
       if (hoveredArrow) {
         hoveredArrow.scale.set(1, 1, 1);
@@ -1974,24 +2021,28 @@
       }
       renderer.domElement.style.cursor = 'default';
 
-      // Widget buttons
+      // Widget buttons (if present)
       document.getElementById('btnCtrlHide')?.classList.toggle('active', mode === 'none');
       document.getElementById('btnCtrlCorner')?.classList.toggle('active', mode === 'corner');
       document.getElementById('btnCtrlLevel')?.classList.toggle('active', mode === 'level');
+      document.getElementById('btnCtrlFace')?.classList.toggle('active', mode === 'face');
 
       // HUD buttons
       document.getElementById('hudBtnCtrlHide')?.classList.toggle('active', mode === 'none');
       document.getElementById('hudBtnCtrlCorner')?.classList.toggle('active', mode === 'corner');
       document.getElementById('hudBtnCtrlLevel')?.classList.toggle('active', mode === 'level');
+      document.getElementById('hudBtnCtrlFace')?.classList.toggle('active', mode === 'face');
     }
 
     document.getElementById('btnCtrlHide')?.addEventListener('click', () => setCubeControlMode('none'));
     document.getElementById('btnCtrlCorner')?.addEventListener('click', () => setCubeControlMode('corner'));
     document.getElementById('btnCtrlLevel')?.addEventListener('click', () => setCubeControlMode('level'));
+    document.getElementById('btnCtrlFace')?.addEventListener('click', () => setCubeControlMode('face'));
 
     document.getElementById('hudBtnCtrlHide')?.addEventListener('click', () => setCubeControlMode('none'));
     document.getElementById('hudBtnCtrlCorner')?.addEventListener('click', () => setCubeControlMode('corner'));
     document.getElementById('hudBtnCtrlLevel')?.addEventListener('click', () => setCubeControlMode('level'));
+    document.getElementById('hudBtnCtrlFace')?.addEventListener('click', () => setCubeControlMode('face'));
 
     const raycaster = new THREE.Raycaster();
     let hoveredArrow = null;
@@ -2033,7 +2084,9 @@
       }
 
       raycaster.setFromCamera(ndc, camera3D);
-      const targetMeshes = (currentControlMode === 'corner') ? cornerArrowMeshes : edgeArrowMeshes;
+      const targetMeshes = (currentControlMode === 'corner') ? cornerArrowMeshes :
+                           (currentControlMode === 'level') ? edgeArrowMeshes :
+                           (currentControlMode === 'face') ? faceArrowMeshes : [];
       const hits = raycaster.intersectObjects(targetMeshes);
       if (hits.length > 0) {
         const topHit = hits[0].object;
@@ -2066,7 +2119,9 @@
       if (!ndc) return;
 
       raycaster.setFromCamera(ndc, camera3D);
-      const targetMeshes = (currentControlMode === 'corner') ? cornerArrowMeshes : edgeArrowMeshes;
+      const targetMeshes = (currentControlMode === 'corner') ? cornerArrowMeshes :
+                           (currentControlMode === 'level') ? edgeArrowMeshes :
+                           (currentControlMode === 'face') ? faceArrowMeshes : [];
       const hits = raycaster.intersectObjects(targetMeshes);
       if (hits.length > 0) {
         e.stopPropagation();

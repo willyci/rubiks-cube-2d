@@ -824,6 +824,10 @@
         <span class="ctrl-icon">↔️</span>
         <span class="ctrl-label">层级 · Level</span>
       </button>
+      <button id="btnCtrlFace" class="cube-ctrl-btn" title="面旋转控制模式 · Face Controls">
+        <span class="ctrl-icon">🔄</span>
+        <span class="ctrl-label">面转 · Face</span>
+      </button>
     </div>
   </div>
 
@@ -1042,10 +1046,11 @@
       </div>
 
       <div class="row label">Cube Controls</div>
-      <div class="row grid-3">
+      <div class="row grid-4">
         <button id="hudBtnCtrlHide" title="隐藏所有旋转图标">Hide</button>
         <button id="hudBtnCtrlCorner" class="active" title="角块控制 (已恢复)">Corner</button>
         <button id="hudBtnCtrlLevel" title="层级控制">Level</button>
+        <button id="hudBtnCtrlFace" title="面旋转控制 (顺/逆时针)">Face</button>
       </div>
     </div>
   </div>
@@ -2562,6 +2567,11 @@
     cube.root.add(edgeControlsGroup);
     edgeControlsGroup.visible = false;
 
+    const faceArrowMeshes = [];
+    const faceControlsGroup = new THREE.Group();
+    cube.root.add(faceControlsGroup);
+    faceControlsGroup.visible = false;
+
     function create3DArrowTexture(dir) {
       const canvas = document.createElement('canvas');
       canvas.width = 128;
@@ -2586,9 +2596,13 @@
       ctx.fillStyle = '#ffd700';
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
-      ctx.font = 'bold 74px system-ui, -apple-system, sans-serif';
 
-      const glyphs = { up: '↑', down: '↓', left: '←', right: '→' };
+      const glyphs = { up: '↑', down: '↓', left: '←', right: '→', cw: '↻', ccw: '↺' };
+      if (dir === 'cw' || dir === 'ccw') {
+        ctx.font = 'bold 64px system-ui, -apple-system, sans-serif';
+      } else {
+        ctx.font = 'bold 74px system-ui, -apple-system, sans-serif';
+      }
       ctx.fillText(glyphs[dir] || '↑', 64, 66);
 
       const texture = new THREE.CanvasTexture(canvas);
@@ -2599,7 +2613,9 @@
       up: create3DArrowTexture('up'),
       down: create3DArrowTexture('down'),
       left: create3DArrowTexture('left'),
-      right: create3DArrowTexture('right')
+      right: create3DArrowTexture('right'),
+      cw: create3DArrowTexture('cw'),
+      ccw: create3DArrowTexture('ccw')
     };
 
     const arrowMaterials = {
@@ -2635,6 +2651,26 @@
       }),
       right: new THREE.MeshBasicMaterial({
         map: arrowTextures.right,
+        transparent: true,
+        depthTest: true,
+        depthWrite: false,
+        polygonOffset: true,
+        polygonOffsetFactor: -4,
+        polygonOffsetUnits: -4,
+        side: THREE.FrontSide
+      }),
+      cw: new THREE.MeshBasicMaterial({
+        map: arrowTextures.cw,
+        transparent: true,
+        depthTest: true,
+        depthWrite: false,
+        polygonOffset: true,
+        polygonOffsetFactor: -4,
+        polygonOffsetUnits: -4,
+        side: THREE.FrontSide
+      }),
+      ccw: new THREE.MeshBasicMaterial({
+        map: arrowTextures.ccw,
         transparent: true,
         depthTest: true,
         depthWrite: false,
@@ -2845,6 +2881,23 @@
         edgeControlsGroup.add(mesh);
         edgeArrowMeshes.push(mesh);
       }
+
+      // 3. Build Face Rotation Controls (Mode 4 / Face Controls - Closer to Center: ↺ on TL, ↻ on BR)
+      const faceCenterOffset = 0.28;
+      const faceDefs = [
+        { dir: 'ccw', pos: faceCenter.clone().addScaledVector(axes.r, -faceCenterOffset).addScaledVector(axes.u, faceCenterOffset), move: { face: fName, turns: -1 } },
+        { dir: 'cw',  pos: faceCenter.clone().addScaledVector(axes.r, faceCenterOffset).addScaledVector(axes.u, -faceCenterOffset),  move: { face: fName, turns: 1 } }
+      ];
+
+      for (const def of faceDefs) {
+        const mesh = new THREE.Mesh(arrowGeo, arrowMaterials[def.dir].clone());
+        mesh.position.copy(def.pos);
+        mesh.quaternion.copy(faceQuat);
+        mesh.renderOrder = 999;
+        mesh.userData = { face: def.move.face, turns: def.move.turns, dir: def.dir };
+        faceControlsGroup.add(mesh);
+        faceArrowMeshes.push(mesh);
+      }
     }
 
     function updateCubeControlsWidgetVisibility() {
@@ -2858,12 +2911,13 @@
       }
     }
 
-    let currentControlMode = 'corner'; // 'none' | 'corner' | 'level'
+    let currentControlMode = 'corner'; // 'none' | 'corner' | 'level' | 'face'
 
     function setCubeControlMode(mode) {
       currentControlMode = mode;
       cornerControlsGroup.visible = (mode === 'corner');
       edgeControlsGroup.visible = (mode === 'level');
+      faceControlsGroup.visible = (mode === 'face');
 
       if (hoveredArrow) {
         hoveredArrow.scale.set(1, 1, 1);
@@ -2875,20 +2929,24 @@
       document.getElementById('btnCtrlHide')?.classList.toggle('active', mode === 'none');
       document.getElementById('btnCtrlCorner')?.classList.toggle('active', mode === 'corner');
       document.getElementById('btnCtrlLevel')?.classList.toggle('active', mode === 'level');
+      document.getElementById('btnCtrlFace')?.classList.toggle('active', mode === 'face');
 
       // HUD buttons
       document.getElementById('hudBtnCtrlHide')?.classList.toggle('active', mode === 'none');
       document.getElementById('hudBtnCtrlCorner')?.classList.toggle('active', mode === 'corner');
       document.getElementById('hudBtnCtrlLevel')?.classList.toggle('active', mode === 'level');
+      document.getElementById('hudBtnCtrlFace')?.classList.toggle('active', mode === 'face');
     }
 
     document.getElementById('btnCtrlHide')?.addEventListener('click', () => setCubeControlMode('none'));
     document.getElementById('btnCtrlCorner')?.addEventListener('click', () => setCubeControlMode('corner'));
     document.getElementById('btnCtrlLevel')?.addEventListener('click', () => setCubeControlMode('level'));
+    document.getElementById('btnCtrlFace')?.addEventListener('click', () => setCubeControlMode('face'));
 
     document.getElementById('hudBtnCtrlHide')?.addEventListener('click', () => setCubeControlMode('none'));
     document.getElementById('hudBtnCtrlCorner')?.addEventListener('click', () => setCubeControlMode('corner'));
     document.getElementById('hudBtnCtrlLevel')?.addEventListener('click', () => setCubeControlMode('level'));
+    document.getElementById('hudBtnCtrlFace')?.addEventListener('click', () => setCubeControlMode('face'));
 
     const raycaster = new THREE.Raycaster();
     let hoveredArrow = null;
@@ -2929,7 +2987,9 @@
         return;
       }
       raycaster.setFromCamera(ndc, camera3D);
-      const targetMeshes = (currentControlMode === 'corner') ? cornerArrowMeshes : edgeArrowMeshes;
+      const targetMeshes = (currentControlMode === 'corner') ? cornerArrowMeshes :
+                           (currentControlMode === 'level') ? edgeArrowMeshes :
+                           (currentControlMode === 'face') ? faceArrowMeshes : [];
       const hits = raycaster.intersectObjects(targetMeshes);
       if (hits.length > 0) {
         renderer.domElement.style.cursor = 'pointer';
@@ -2962,7 +3022,9 @@
       if (!ndc) return;
 
       raycaster.setFromCamera(ndc, camera3D);
-      const targetMeshes = (currentControlMode === 'corner') ? cornerArrowMeshes : edgeArrowMeshes;
+      const targetMeshes = (currentControlMode === 'corner') ? cornerArrowMeshes :
+                           (currentControlMode === 'level') ? edgeArrowMeshes :
+                           (currentControlMode === 'face') ? faceArrowMeshes : [];
       const hits = raycaster.intersectObjects(targetMeshes);
       if (hits.length > 0) {
         e.stopPropagation();
