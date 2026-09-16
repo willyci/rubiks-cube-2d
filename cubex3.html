@@ -832,7 +832,7 @@
         <span class="ctrl-icon">🙈</span>
         <span class="ctrl-label">隐藏 · Hide</span>
       </button>
-      <button id="btnCtrlCorner" class="cube-ctrl-btn active" title="角块控制模式 (已恢复) · Corner Piece Controls">
+      <button id="btnCtrlCorner" class="cube-ctrl-btn" title="角块控制模式 (已恢复) · Corner Piece Controls">
         <span class="ctrl-icon">📐</span>
         <span class="ctrl-label">角块 · Corner</span>
       </button>
@@ -840,7 +840,7 @@
         <span class="ctrl-icon">↔️</span>
         <span class="ctrl-label">边块 · Edge</span>
       </button>
-      <button id="btnCtrlFace" class="cube-ctrl-btn" title="面中心旋转控制模式 · Face Controls">
+      <button id="btnCtrlFace" class="cube-ctrl-btn active" title="面中心旋转控制模式 · Face Controls">
         <span class="ctrl-icon">🔄</span>
         <span class="ctrl-label">面转 · Face</span>
       </button>
@@ -1208,9 +1208,9 @@
       <div class="row label">Cube Controls</div>
       <div class="row grid-4">
         <button id="hudBtnCtrlHide" title="隐藏所有旋转图标">Hide</button>
-        <button id="hudBtnCtrlCorner" class="active" title="角块控制 (12按键)">Corner</button>
+        <button id="hudBtnCtrlCorner" title="角块控制 (12按键)">Corner</button>
         <button id="hudBtnCtrlLevel" title="边块控制 (8按键)">Edge</button>
-        <button id="hudBtnCtrlFace" title="面中心旋转控制 (顺/逆时针)">Face</button>
+        <button id="hudBtnCtrlFace" class="active" title="面中心旋转控制 (顺/逆时针)">Face</button>
       </div>
 
       <div class="row hint">
@@ -2969,9 +2969,9 @@
     cube.root.add(cornerControlsGroup);
     cube.root.add(edgeControlsGroup);
     cube.root.add(faceControlsGroup);
-    cornerControlsGroup.visible = true;
+    cornerControlsGroup.visible = false;
     edgeControlsGroup.visible = false;
-    faceControlsGroup.visible = false;
+    faceControlsGroup.visible = true;
 
     function create3DArrowTexture(dir) {
       const canvas = document.createElement('canvas');
@@ -3357,7 +3357,10 @@
       }
     }
 
-    let currentControlMode = 'corner'; // 'none' | 'corner' | 'level' | 'face'
+    const raycaster = new THREE.Raycaster();
+    let hoveredArrow = null;
+
+    let currentControlMode = 'face'; // 'none' | 'corner' | 'level' | 'face'
 
     function setCubeControlMode(mode) {
       currentControlMode = mode;
@@ -3394,8 +3397,8 @@
     document.getElementById('hudBtnCtrlLevel')?.addEventListener('click', () => setCubeControlMode('level'));
     document.getElementById('hudBtnCtrlFace')?.addEventListener('click', () => setCubeControlMode('face'));
 
-    const raycaster = new THREE.Raycaster();
-    let hoveredArrow = null;
+    // Initialize to face controls by default
+    setCubeControlMode('face');
 
     function get3DMouseNDC(clientX, clientY) {
       const w = window.innerWidth;
