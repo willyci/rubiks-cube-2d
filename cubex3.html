@@ -345,10 +345,41 @@
       color: #141e1c;
     }
 
+    .btn-hub {
+      position: fixed;
+      top: 16px;
+      left: 20px;
+      z-index: 30;
+      display: inline-flex;
+      align-items: center;
+      gap: 7px;
+      padding: 6px 14px;
+      border-radius: 8px;
+      background: rgba(16, 26, 24, 0.85);
+      border: 1px solid rgba(111, 227, 198, 0.3);
+      color: var(--cyan);
+      font-size: 12px;
+      font-weight: 600;
+      letter-spacing: 0.04em;
+      text-decoration: none;
+      backdrop-filter: blur(10px);
+      -webkit-backdrop-filter: blur(10px);
+      box-shadow: 0 4px 16px rgba(0, 0, 0, 0.45);
+      transition: all 0.2s ease;
+      cursor: pointer;
+    }
+    .btn-hub:hover {
+      background: rgba(111, 227, 198, 0.18);
+      border-color: var(--cyan);
+      box-shadow: 0 4px 20px rgba(111, 227, 198, 0.25);
+      transform: translateY(-1px);
+      color: #fff;
+    }
+
     #toggleMethodsFloat {
       position: fixed;
-      top: 18px;
-      left: 20px;
+      top: 16px;
+      left: 152px;
       z-index: 25;
       display: none;
       padding: 6px 12px;
@@ -507,7 +538,8 @@
     button:active { transform: translateY(1px); }
     button.active { border-color: var(--accent); color: var(--accent); background: rgba(255, 140, 26, 0.15); }
     button:disabled,
-    button.disabled {
+    button.disabled,
+    button.running {
       opacity: 0.32 !important;
       cursor: not-allowed !important;
       pointer-events: none !important;
@@ -808,6 +840,10 @@
         <span class="ctrl-icon">↔️</span>
         <span class="ctrl-label">边块 · Edge</span>
       </button>
+      <button id="btnCtrlFace" class="cube-ctrl-btn" title="面中心旋转控制模式 · Face Controls">
+        <span class="ctrl-icon">🔄</span>
+        <span class="ctrl-label">面转 · Face</span>
+      </button>
     </div>
   </div>
 
@@ -815,6 +851,11 @@
     <h1>换个角度，解开魔方</h1>
     <p>3D 实体魔方与 2D 三环系统投影实时双向映射</p>
   </header>
+
+  <a id="btnBackHub" href="./index.html" class="btn-hub" title="返回魔方大厅选关 · Return to Cube Dimension Picker">
+    <span>◫</span>
+    <span>魔方大厅 · Hub</span>
+  </a>
 
   <button id="toggleMethodsFloat">📖 Methods</button>
 
@@ -1462,6 +1503,7 @@
 
         const subs = this.views.map((v) => v.beginMove(face, turns));
 
+        let isFinished = false;
         return {
           face,
           turns,
@@ -1470,6 +1512,8 @@
             for (const s of subs) s.setProgress(t);
           },
           finish: () => {
+            if (isFinished) return;
+            isFinished = true;
             const q = new THREE.Quaternion().setFromAxisAngle(axis, angle);
             for (const p of members) {
               p.coord.applyQuaternion(q).round();
@@ -1649,9 +1693,7 @@
         const faceCenter = (face in NORMALS) ? calculateRestPosition(face, new THREE.Vector3(0, 0, 0)) : null;
 
         // Base sign for clockwise 3D turn:
-        // U, R, F, S outer rings rotate counter-clockwise (positive dTheta)
-        // D, L, B, M, E inner rings rotate clockwise (negative dTheta)
-        const baseSign = (face === 'U' || face === 'R' || face === 'F' || face === 'S') ? 1 : -1;
+        const baseSign = (face === 'U' || face === 'R' || face === 'F' || face === 'S') ? -1 : 1;
         const moveDir = baseSign * turns;
 
         const animatedItems = [];
@@ -1694,7 +1736,8 @@
               const theta1 = Math.atan2(vEnd.y, vEnd.x);
 
               let dTheta = theta1 - theta0;
-              if (turns > 0) {
+              const faceDir = -turns;
+              if (faceDir > 0) {
                 while (dTheta <= 0) dTheta += Math.PI * 2;
                 while (dTheta > Math.PI * 2) dTheta -= Math.PI * 2;
               } else {
@@ -1743,6 +1786,7 @@
           }
         }
 
+        let isFinished = false;
         return {
           setProgress: (t) => {
             for (const item of animatedItems) {
@@ -1757,6 +1801,8 @@
             }
           },
           finish: () => {
+            if (isFinished) return;
+            isFinished = true;
             this.setRingHighlight(axis, slice, false);
             this.sync();
           },
@@ -1784,6 +1830,8 @@
 
       push(move, source = 'user') {
         if (!move) return;
+        // Cap user queue backlog to prevent freeze on rapid button spamming
+        if (source === 'user' && this.queue.length >= 24) return;
         this.queue.push({ ...move, source });
       }
 
@@ -1932,7 +1980,9 @@
 
         const { move, handle } = this.active;
         const baseDuration = (move.source === 'scramble' || move.source === 'rollback') ? 0.12 : 0.35;
-        const duration = (baseDuration * (move.turns === 2 ? 1.6 : 1)) / this.speed;
+        // Accelerate dynamically if there's a queue backlog so the cube feels responsive and never freezes
+        const backlogFactor = Math.min(3.5, 1 + this.queue.length * 0.25);
+        const duration = Math.max(0.04, ((baseDuration * (move.turns === 2 ? 1.6 : 1)) / Math.max(0.1, this.speed)) / backlogFactor);
         this.elapsed += dt;
         const t = Math.min(1, this.elapsed / duration);
         // Smooth ease-in-out curve
@@ -1940,12 +1990,12 @@
         handle.setProgress(ease);
 
         if (t >= 1) {
+          this.active = null;
           handle.finish();
           if (move.source === 'user' || move.source === 'scramble') {
             this.history.push({ face: move.face, turns: move.turns });
             if (this.onHistoryChange) this.onHistoryChange();
           }
-          this.active = null;
           if (this.queue.length === 0 && this.isScrambling) {
             this.isScrambling = false;
           }
@@ -2176,11 +2226,19 @@
       container.querySelectorAll('.btn-run').forEach((btn) => {
         btn.addEventListener('click', (e) => {
           e.stopPropagation();
-          onUserInteractedWithMoveOrMethod();
+          if (btn.disabled || btn.classList.contains('running')) return;
           const alg = btn.dataset.alg;
           if (alg) {
             const cleanTokens = alg.replace(/^[^:]+:\s*/, '').trim().split(/\s+/).filter(Boolean);
             if (cleanTokens.length) {
+              btn.classList.add('running');
+              const origText = btn.textContent;
+              btn.textContent = '⏳';
+              setTimeout(() => {
+                btn.textContent = origText;
+                btn.classList.remove('running');
+              }, 400);
+              onUserInteractedWithMoveOrMethod();
               engine.pushSequence(cleanTokens, 'user');
             }
           }
@@ -2374,10 +2432,14 @@
       renderMethodSteps('content-zz', profile.zz);
     }
 
+    let lastSolutionUpdateTime = 0;
     const btnUpdateSolution = document.getElementById('btnUpdateSolution');
     if (btnUpdateSolution) {
       btnUpdateSolution.addEventListener('click', (e) => {
         e.stopPropagation();
+        const now = Date.now();
+        if (now - lastSolutionUpdateTime < 300) return;
+        lastSolutionUpdateTime = now;
         updateSolutionForCurrentCube();
       });
     }
@@ -2415,14 +2477,23 @@
       setScrambleDisabled(false);
     }
 
+    let lastUserMoveTime = 0;
+    function triggerUserMove(move) {
+      if (!move) return;
+      const now = Date.now();
+      if (now - lastUserMoveTime < 60) return; // Ignore accidental bounce <60ms
+      lastUserMoveTime = now;
+      onUserInteractedWithMoveOrMethod();
+      engine.push(move, 'user');
+    }
+
     for (const [face, suffix] of moveButtons) {
       const btn = document.createElement('button');
       btn.className = 'move';
       btn.dataset.face = face;
       btn.textContent = face + suffix;
       btn.addEventListener('click', () => {
-        onUserInteractedWithMoveOrMethod();
-        engine.push(engine.parseMove(face + suffix), 'user');
+        triggerUserMove(engine.parseMove(face + suffix));
       });
       movesBox.appendChild(btn);
     }
@@ -2436,15 +2507,18 @@
         btn.textContent = face + suffix;
         btn.title = `${face}${suffix} · 中间层旋转 (Slice)`;
         btn.addEventListener('click', () => {
-          onUserInteractedWithMoveOrMethod();
-          engine.push(engine.parseMove(face + suffix), 'user');
+          triggerUserMove(engine.parseMove(face + suffix));
         });
         sliceMovesBox.appendChild(btn);
       }
     }
 
+    let lastActionTime = 0;
     const actions = {
       scramble: () => {
+        const now = Date.now();
+        if (now - lastActionTime < 180) return;
+        lastActionTime = now;
         if (scrambleBtn && scrambleBtn.disabled) return;
         isScrambled = true;
         setScrambleDisabled(false);
@@ -2455,14 +2529,24 @@
         engine.scramble(profile.scramble);
       },
       solve: () => {
+        const now = Date.now();
+        if (now - lastActionTime < 180) return;
+        lastActionTime = now;
+        if (cube.isSolved() && engine.queue.length === 0) return;
         resetScrambleState();
         engine.solve();
       },
       undo: () => {
+        const now = Date.now();
+        if (now - lastActionTime < 80) return;
+        lastActionTime = now;
         onUserInteractedWithMoveOrMethod();
         engine.undo();
       },
       reset: () => {
+        const now = Date.now();
+        if (now - lastActionTime < 150) return;
+        lastActionTime = now;
         resetScrambleState();
         engine.clear();
         cube.reset();
@@ -2472,7 +2556,10 @@
     };
 
     document.querySelectorAll('[data-act]').forEach((btn) => {
-      btn.addEventListener('click', () => actions[btn.dataset.act]());
+      btn.addEventListener('click', () => {
+        const act = btn.dataset.act;
+        if (actions[act]) actions[act]();
+      });
     });
 
     document.querySelectorAll('[data-view]').forEach((btn) => {
@@ -2496,10 +2583,10 @@
 
     window.addEventListener('keydown', (e) => {
       if (e.target instanceof HTMLInputElement) return;
+      if (e.repeat) return; // Ignore hold-down repeat spam
       const key = e.key.toUpperCase();
       if (FACES.includes(key) || ['M', 'E', 'S'].includes(key)) {
-        onUserInteractedWithMoveOrMethod();
-        engine.push(engine.parseMove(key + (e.shiftKey ? "'" : '')), 'user');
+        triggerUserMove(engine.parseMove(key + (e.shiftKey ? "'" : '')));
         e.preventDefault();
         return;
       }
@@ -2564,9 +2651,13 @@
       // Auto-scroll to end so latest move is in view
       historyBox.scrollTop = historyBox.scrollHeight;
 
+      let lastRollbackTime = 0;
       historyBox.querySelectorAll('.hist-chip').forEach((btn) => {
         btn.addEventListener('click', (e) => {
           e.stopPropagation();
+          const now = Date.now();
+          if (now - lastRollbackTime < 100) return;
+          lastRollbackTime = now;
           onUserInteractedWithMoveOrMethod();
           const target = parseInt(btn.dataset.rollback, 10);
           if (!isNaN(target)) {
@@ -2618,11 +2709,21 @@
     document.querySelectorAll('.btn-run').forEach((btn) => {
       btn.addEventListener('click', (e) => {
         e.stopPropagation();
-        onUserInteractedWithMoveOrMethod();
+        if (btn.disabled || btn.classList.contains('running')) return;
         const alg = btn.dataset.alg;
         if (alg) {
-          const cleanTokens = alg.replace(/^[^:]+:\s*/, '').trim().split(/\s+/);
-          engine.pushSequence(cleanTokens, 'user');
+          const cleanTokens = alg.replace(/^[^:]+:\s*/, '').trim().split(/\s+/).filter(Boolean);
+          if (cleanTokens.length) {
+            btn.classList.add('running');
+            const origText = btn.textContent;
+            btn.textContent = '⏳';
+            setTimeout(() => {
+              btn.textContent = origText;
+              btn.classList.remove('running');
+            }, 400);
+            onUserInteractedWithMoveOrMethod();
+            engine.pushSequence(cleanTokens, 'user');
+          }
         }
       });
     });
@@ -2735,11 +2836,10 @@
     document.querySelectorAll('.circle-rot-btn').forEach((btn) => {
       btn.addEventListener('click', (e) => {
         e.stopPropagation();
-        onUserInteractedWithMoveOrMethod();
         const face = btn.dataset.face;
         const turns = parseInt(btn.dataset.turns, 10);
         if (face && !isNaN(turns)) {
-          engine.push({ face, turns }, 'user');
+          triggerUserMove({ face, turns });
         }
       });
     });
@@ -3294,6 +3394,7 @@
     });
 
     renderer.domElement.addEventListener('pointerup', (e) => {
+      if (e.button !== 0 && e.button !== undefined) return; // Only trigger turns on left-click
       if (currentView === 'flat' || currentControlMode === 'none') return;
       const dist = Math.hypot(e.clientX - pointerDownPos.x, e.clientY - pointerDownPos.y);
       if (dist > 6) return; // Ignore drag/orbit
@@ -3310,10 +3411,17 @@
         e.stopPropagation();
         const { face, turns } = hits[0].object.userData;
         if (face && turns) {
-          onUserInteractedWithMoveOrMethod();
-          engine.push({ face, turns }, 'user');
+          triggerUserMove({ face, turns });
         }
       }
+    });
+
+    renderer.domElement.addEventListener('pointerleave', () => {
+      if (hoveredArrow) {
+        hoveredArrow.scale.set(1, 1, 1);
+        hoveredArrow = null;
+      }
+      renderer.domElement.style.cursor = 'default';
     });
 
     // ------------------------------------------------------------- Viewport Rendering Loop

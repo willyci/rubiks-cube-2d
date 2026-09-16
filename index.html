@@ -3,61 +3,876 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>换个角度，解开魔方 · Rubik's Circles</title>
-  <link rel="stylesheet" href="./styles.css" />
+  <title>换个角度，解开魔方 · Rubik's Circles Hub</title>
+  <style>
+    :root {
+      --bg: #0c1513;
+      --bg-gradient: radial-gradient(circle at 50% 20%, #1a2c27 0%, #0d1715 65%, #080d0c 100%);
+      --ink: #f0f7f5;
+      --muted: #8ea8a2;
+      --dim: #506963;
+      --cyan: #6fe3c6;
+      --cyan-glow: rgba(111, 227, 198, 0.4);
+      --accent: #ff8c1a;
+      --accent-glow: rgba(255, 140, 26, 0.35);
+      --gold: #ffd700;
+      --panel: rgba(16, 26, 24, 0.72);
+      --panel-hover: rgba(22, 36, 33, 0.88);
+      --border: rgba(111, 227, 198, 0.16);
+      --border-active: rgba(111, 227, 198, 0.48);
+    }
+
+    * { box-sizing: border-box; }
+
+    html, body {
+      margin: 0;
+      min-height: 100%;
+      background: var(--bg);
+      background-image: var(--bg-gradient);
+      color: var(--ink);
+      font: 14px/1.6 "Segoe UI", system-ui, -apple-system, "PingFang SC", "Microsoft YaHei", sans-serif;
+      overflow-x: hidden;
+      user-select: none;
+      -webkit-user-select: none;
+    }
+
+    /* Ambient Three.js canvas in background */
+    #bg-canvas {
+      position: fixed;
+      inset: 0;
+      pointer-events: none;
+      z-index: 0;
+      opacity: 0.55;
+    }
+
+    /* Main Container */
+    .container {
+      position: relative;
+      z-index: 1;
+      max-width: 1240px;
+      margin: 0 auto;
+      padding: 48px 24px 72px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+    }
+
+    /* Header & Hero */
+    .hero {
+      text-align: center;
+      margin-bottom: 48px;
+      max-width: 820px;
+    }
+
+    .badge-pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 7px;
+      padding: 5px 14px;
+      border-radius: 999px;
+      background: rgba(111, 227, 198, 0.08);
+      border: 1px solid rgba(111, 227, 198, 0.28);
+      color: var(--cyan);
+      font-size: 11px;
+      font-weight: 600;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      margin-bottom: 18px;
+      box-shadow: 0 0 20px rgba(111, 227, 198, 0.12);
+    }
+
+    .badge-pill .pulse-dot {
+      width: 7px;
+      height: 7px;
+      border-radius: 50%;
+      background: var(--cyan);
+      box-shadow: 0 0 10px var(--cyan);
+      animation: pulse 2s infinite;
+    }
+
+    @keyframes pulse {
+      0%, 100% { transform: scale(1); opacity: 1; }
+      50% { transform: scale(1.4); opacity: 0.5; }
+    }
+
+    h1 {
+      margin: 0 0 12px;
+      font-size: 42px;
+      font-weight: 700;
+      letter-spacing: 0.12em;
+      color: var(--ink);
+      text-shadow: 0 2px 24px rgba(0, 0, 0, 0.8), 0 0 32px rgba(111, 227, 198, 0.25);
+      background: linear-gradient(135deg, #ffffff 30%, #a4eedb 70%, #6fe3c6 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+
+    .subtitle {
+      margin: 0 auto;
+      font-size: 15px;
+      color: var(--muted);
+      line-height: 1.7;
+      letter-spacing: 0.04em;
+    }
+
+    .subtitle-en {
+      margin-top: 6px;
+      font-size: 12px;
+      color: var(--dim);
+      letter-spacing: 0.02em;
+    }
+
+    /* Grid of Cube Cards */
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 24px;
+      width: 100%;
+      margin-bottom: 56px;
+    }
+
+    @media (max-width: 1024px) {
+      .grid { grid-template-columns: repeat(2, 1fr); }
+    }
+    @media (max-width: 680px) {
+      .grid { grid-template-columns: 1fr; }
+      h1 { font-size: 30px; }
+      .container { padding: 32px 16px 56px; }
+    }
+
+    /* Card Component */
+    .cube-card {
+      position: relative;
+      background: var(--panel);
+      backdrop-filter: blur(16px);
+      -webkit-backdrop-filter: blur(16px);
+      border: 1px solid var(--border);
+      border-radius: 18px;
+      padding: 28px 24px;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      text-decoration: none;
+      color: inherit;
+      transition: transform 0.25s ease, border-color 0.25s ease, box-shadow 0.25s ease, background 0.25s ease;
+      overflow: hidden;
+    }
+
+    .cube-card::before {
+      content: "";
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      height: 3px;
+      background: linear-gradient(90deg, transparent, rgba(111, 227, 198, 0.4), transparent);
+      opacity: 0;
+      transition: opacity 0.3s ease;
+    }
+
+    .cube-card.ready {
+      cursor: pointer;
+    }
+
+    .cube-card.ready:hover {
+      transform: translateY(-5px);
+      border-color: var(--border-active);
+      background: var(--panel-hover);
+      box-shadow: 0 16px 36px rgba(0, 0, 0, 0.45), 0 0 24px rgba(111, 227, 198, 0.16);
+    }
+
+    .cube-card.ready:hover::before {
+      opacity: 1;
+    }
+
+    .cube-card.featured {
+      border-color: rgba(255, 140, 26, 0.35);
+    }
+
+    .cube-card.featured::before {
+      background: linear-gradient(90deg, transparent, rgba(255, 140, 26, 0.8), transparent);
+    }
+
+    .cube-card.featured:hover {
+      border-color: var(--accent);
+      box-shadow: 0 16px 36px rgba(0, 0, 0, 0.45), 0 0 28px rgba(255, 140, 26, 0.22);
+    }
+
+    .cube-card.disabled {
+      cursor: default;
+      opacity: 0.62;
+      border-color: rgba(255, 255, 255, 0.06);
+      filter: grayscale(0.2);
+    }
+
+    .cube-card.disabled:hover {
+      transform: none;
+      box-shadow: none;
+    }
+
+    /* Card Top Header */
+    .card-top {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 20px;
+    }
+
+    .dim-tag {
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+      font-size: 13px;
+      font-weight: 700;
+      padding: 4px 10px;
+      border-radius: 8px;
+      background: rgba(255, 255, 255, 0.05);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      color: var(--ink);
+    }
+
+    .status-tag {
+      font-size: 11px;
+      font-weight: 600;
+      padding: 4px 10px;
+      border-radius: 999px;
+      letter-spacing: 0.04em;
+    }
+
+    .status-tag.active {
+      background: rgba(111, 227, 198, 0.14);
+      color: var(--cyan);
+      border: 1px solid rgba(111, 227, 198, 0.3);
+    }
+
+    .status-tag.featured {
+      background: rgba(255, 140, 26, 0.16);
+      color: var(--accent);
+      border: 1px solid rgba(255, 140, 26, 0.35);
+    }
+
+    .status-tag.coming-soon {
+      background: rgba(255, 255, 255, 0.05);
+      color: var(--muted);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+    }
+
+    /* Visual Graphic */
+    .card-graphic {
+      height: 100px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      margin-bottom: 20px;
+      position: relative;
+    }
+
+    .cube-icon {
+      filter: drop-shadow(0 8px 16px rgba(0, 0, 0, 0.5));
+      transition: transform 0.3s ease;
+    }
+
+    .cube-card.ready:hover .cube-icon {
+      transform: scale(1.08) rotate(3deg);
+    }
+
+    /* Card Info */
+    .card-title {
+      font-size: 20px;
+      font-weight: 700;
+      letter-spacing: 0.05em;
+      margin: 0 0 6px;
+      color: #fff;
+    }
+
+    .card-title-en {
+      font-size: 12px;
+      color: var(--muted);
+      margin-bottom: 12px;
+      font-weight: 500;
+    }
+
+    .card-desc {
+      font-size: 12px;
+      color: var(--muted);
+      line-height: 1.6;
+      margin-bottom: 18px;
+    }
+
+    /* Feature Bullets */
+    .feature-list {
+      list-style: none;
+      padding: 0;
+      margin: 0 0 24px;
+      display: flex;
+      flex-direction: column;
+      gap: 7px;
+    }
+
+    .feature-list li {
+      font-size: 12px;
+      color: #d1e2dc;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .feature-list li .bullet {
+      color: var(--cyan);
+      font-size: 10px;
+    }
+
+    .feature-list li.dimmed {
+      color: var(--dim);
+    }
+
+    /* Action Button */
+    .btn-launch {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      width: 100%;
+      padding: 11px 16px;
+      border-radius: 10px;
+      font-size: 13px;
+      font-weight: 600;
+      letter-spacing: 0.04em;
+      text-decoration: none;
+      transition: all 0.2s ease;
+    }
+
+    .btn-launch.primary {
+      background: linear-gradient(135deg, rgba(111, 227, 198, 0.2), rgba(111, 227, 198, 0.35));
+      border: 1px solid var(--cyan);
+      color: #fff;
+      box-shadow: 0 4px 14px rgba(111, 227, 198, 0.2);
+    }
+
+    .btn-launch.primary:hover {
+      background: linear-gradient(135deg, rgba(111, 227, 198, 0.35), rgba(111, 227, 198, 0.5));
+      box-shadow: 0 6px 20px rgba(111, 227, 198, 0.35);
+      transform: translateY(-1px);
+    }
+
+    .btn-launch.featured-btn {
+      background: linear-gradient(135deg, rgba(255, 140, 26, 0.2), rgba(255, 140, 26, 0.35));
+      border: 1px solid var(--accent);
+      color: #fff;
+      box-shadow: 0 4px 14px rgba(255, 140, 26, 0.2);
+    }
+
+    .btn-launch.featured-btn:hover {
+      background: linear-gradient(135deg, rgba(255, 140, 26, 0.35), rgba(255, 140, 26, 0.55));
+      box-shadow: 0 6px 20px rgba(255, 140, 26, 0.35);
+      transform: translateY(-1px);
+    }
+
+    .btn-launch.locked {
+      background: rgba(255, 255, 255, 0.03);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      color: var(--dim);
+      cursor: not-allowed;
+      pointer-events: none;
+    }
+
+    /* Philosophy / Features Section */
+    .features-section {
+      width: 100%;
+      margin-top: 12px;
+      border-top: 1px solid rgba(111, 227, 198, 0.12);
+      padding-top: 48px;
+    }
+
+    .section-title {
+      text-align: center;
+      margin-bottom: 32px;
+    }
+
+    .section-title h2 {
+      margin: 0 0 8px;
+      font-size: 22px;
+      font-weight: 600;
+      letter-spacing: 0.08em;
+      color: var(--ink);
+    }
+
+    .section-title p {
+      margin: 0;
+      font-size: 13px;
+      color: var(--muted);
+    }
+
+    .feature-cards {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 20px;
+    }
+
+    @media (max-width: 820px) {
+      .feature-cards { grid-template-columns: 1fr; }
+    }
+
+    .feature-card {
+      background: rgba(16, 26, 24, 0.45);
+      border: 1px solid rgba(190, 216, 210, 0.08);
+      border-radius: 14px;
+      padding: 22px 20px;
+    }
+
+    .feature-card-header {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      margin-bottom: 10px;
+    }
+
+    .feature-card-icon {
+      font-size: 22px;
+    }
+
+    .feature-card-title {
+      font-size: 15px;
+      font-weight: 600;
+      color: var(--ink);
+      letter-spacing: 0.04em;
+    }
+
+    .feature-card-desc {
+      font-size: 12px;
+      color: var(--muted);
+      line-height: 1.65;
+    }
+
+    /* Footer */
+    footer {
+      margin-top: 56px;
+      text-align: center;
+      font-size: 12px;
+      color: var(--dim);
+      letter-spacing: 0.05em;
+    }
+
+    footer a {
+      color: var(--muted);
+      text-decoration: none;
+      transition: color 0.2s;
+    }
+
+    footer a:hover {
+      color: var(--cyan);
+    }
+  </style>
   <script type="importmap">
   {
     "imports": {
-      "three": "https://cdn.jsdelivr.net/npm/three@0.169.0/build/three.module.js",
-      "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.169.0/examples/jsm/"
+      "three": "https://cdn.jsdelivr.net/npm/three@0.169.0/build/three.module.js"
     }
   }
   </script>
 </head>
 <body>
-  <div id="app"></div>
+  <!-- Ambient background 3D canvas -->
+  <canvas id="bg-canvas"></canvas>
 
-  <header id="title">
-    <h1>换个角度，解开魔方</h1>
-    <p>One cube, two pictures: the solid puzzle below, and every sticker as a dot on its face's circle above.</p>
-  </header>
+  <div class="container">
+    <!-- Hero Header -->
+    <header class="hero">
+      <div class="badge-pill">
+        <span class="pulse-dot"></span>
+        <span>Rubik's Circles Engine · 换个角度解魔方</span>
+      </div>
+      <h1>选择魔方阶数 · SELECT DIMENSION</h1>
+      <p class="subtitle">
+        3D 实体魔方与 2D 三环系统投影几何联动 · 从二阶口袋魔方到七阶终极维度的数学探索之旅
+      </p>
+      <p class="subtitle-en">
+        Explore 2×2 through 7×7 Rubik's cubes via physical 3D simulations and 2D multi-concentric circle group projections.
+      </p>
+    </header>
 
-  <div id="hud">
-    <div class="panel">
-      <div class="row label">Moves</div>
-      <div class="row grid" id="moves"></div>
+    <!-- Cubes Grid: cubex2 to cubex7 -->
+    <main class="grid">
+      <!-- 2x2 Pocket Cube (ACTIVE) -->
+      <div class="cube-card ready" onclick="window.location.href='./cubex2.html'">
+        <div>
+          <div class="card-top">
+            <span class="dim-tag">2×2×2</span>
+            <span class="status-tag active">● 可玩 · Ready</span>
+          </div>
 
-      <div class="row label">Actions</div>
-      <div class="row">
-        <button data-act="scramble">Scramble</button>
-        <button data-act="solve">Solve</button>
-        <button data-act="undo">Undo</button>
-        <button data-act="reset">Reset</button>
+          <div class="card-graphic">
+            <svg class="cube-icon" width="84" height="84" viewBox="0 0 100 100" fill="none">
+              <!-- Isometric 2x2 Cube -->
+              <g stroke="#101a18" stroke-width="2" stroke-linejoin="round">
+                <!-- Top Face (White) -->
+                <polygon points="50,15 75,28 50,41 25,28" fill="#f5f5f5"/>
+                <line x1="37.5" y1="21.5" x2="62.5" y2="34.5"/>
+                <line x1="62.5" y1="21.5" x2="37.5" y2="34.5"/>
+
+                <!-- Left Face (Green) -->
+                <polygon points="25,28 50,41 50,71 25,58" fill="#1fa04a"/>
+                <line x1="37.5" y1="34.5" x2="37.5" y2="64.5"/>
+                <line x1="25" y1="43" x2="50" y2="56"/>
+
+                <!-- Right Face (Red) -->
+                <polygon points="50,41 75,28 75,58 50,71" fill="#d6262b"/>
+                <line x1="62.5" y1="34.5" x2="62.5" y2="64.5"/>
+                <line x1="50" y1="56" x2="75" y2="43"/>
+              </g>
+            </svg>
+          </div>
+
+          <h2 class="card-title">二阶口袋魔方</h2>
+          <div class="card-title-en">Pocket Cube 2×2</div>
+          <div class="card-desc">
+            8 颗纯角块结构，轻巧灵活。2D 投影系统由双同心圆环构成，快速洞悉空间角块置换规律。
+          </div>
+
+          <ul class="feature-list">
+            <li><span class="bullet">✦</span> 2D 双重同心环交点投影系统</li>
+            <li><span class="bullet">✦</span> 4 大竞速解法 (Layer / Ortega / CLL / EG)</li>
+            <li><span class="bullet">✦</span> 角块、层级、面中心 4 种旋转控制器</li>
+            <li><span class="bullet">✦</span> 实时智能求解与步骤历史回退</li>
+          </ul>
+        </div>
+
+        <a class="btn-launch primary" href="./cubex2.html">
+          <span>进入二阶 · Play 2×2</span>
+          <span>→</span>
+        </a>
       </div>
 
-      <div class="row label">View</div>
-      <div class="row">
-        <button data-view="both" class="view active">Both</button>
-        <button data-view="cube" class="view">Cube</button>
-        <button data-view="flat" class="view">Circles</button>
+      <!-- 3x3 Classic Cube (ACTIVE & FEATURED) -->
+      <div class="cube-card ready featured" onclick="window.location.href='./cubex3.html'">
+        <div>
+          <div class="card-top">
+            <span class="dim-tag" style="border-color:rgba(255,140,26,0.35);color:var(--accent);">3×3×3</span>
+            <span class="status-tag featured">★ 经典必玩 · Featured</span>
+          </div>
+
+          <div class="card-graphic">
+            <svg class="cube-icon" width="84" height="84" viewBox="0 0 100 100" fill="none">
+              <!-- Isometric 3x3 Cube -->
+              <g stroke="#101a18" stroke-width="1.8" stroke-linejoin="round">
+                <!-- Top Face (White) -->
+                <polygon points="50,12 80,27 50,42 20,27" fill="#f5f5f5"/>
+                <line x1="30" y1="17" x2="60" y2="32"/>
+                <line x1="40" y1="22" x2="70" y2="37"/>
+                <line x1="70" y1="22" x2="40" y2="37"/>
+                <line x1="60" y1="17" x2="30" y2="32"/>
+
+                <!-- Left Face (Green) -->
+                <polygon points="20,27 50,42 50,77 20,62" fill="#1fa04a"/>
+                <line x1="30" y1="32" x2="30" y2="67"/>
+                <line x1="40" y1="37" x2="40" y2="72"/>
+                <line x1="20" y1="39" x2="50" y2="54"/>
+                <line x1="20" y1="50.5" x2="50" y2="65.5"/>
+
+                <!-- Right Face (Red) -->
+                <polygon points="50,42 80,27 80,62 50,77" fill="#d6262b"/>
+                <line x1="60" y1="37" x2="60" y2="72"/>
+                <line x1="70" y1="32" x2="70" y2="67"/>
+                <line x1="50" y1="54" x2="80" y2="39"/>
+                <line x1="50" y1="65.5" x2="80" y2="50.5"/>
+              </g>
+            </svg>
+          </div>
+
+          <h2 class="card-title">三阶经典魔方</h2>
+          <div class="card-title-en">Rubik's Classic 3×3</div>
+          <div class="card-desc">
+            魔方永恒图腾，角块、棱块、中心块三位一体。三圆同心环完美映射 Cayley 置换群拓扑结构。
+          </div>
+
+          <ul class="feature-list">
+            <li><span class="bullet" style="color:var(--accent);">✦</span> 2D 三圆同心环数学完美映射体系</li>
+            <li><span class="bullet" style="color:var(--accent);">✦</span> 4 大主流解法 (CFOP / Roux / ZZ / 层先)</li>
+            <li><span class="bullet" style="color:var(--accent);">✦</span> 面层转动与 M / S / E 中轴切片独立控制</li>
+            <li><span class="bullet" style="color:var(--accent);">✦</span> 实时一键逆向求解与解法卡片同步</li>
+          </ul>
+        </div>
+
+        <a class="btn-launch featured-btn" href="./cubex3.html">
+          <span>进入三阶 · Play 3×3</span>
+          <span>→</span>
+        </a>
       </div>
 
-      <div class="row label">Speed <span id="speedVal">1.0×</span></div>
-      <div class="row"><input id="speed" type="range" min="0.25" max="3" step="0.05" value="1" /></div>
+      <!-- 4x4 Rubik's Revenge (COMING SOON) -->
+      <div class="cube-card disabled" title="四阶魔方正在紧锣密鼓研发中，敬请期待！">
+        <div>
+          <div class="card-top">
+            <span class="dim-tag">4×4×4</span>
+            <span class="status-tag coming-soon">⏳ 研发中 · Soon</span>
+          </div>
 
-      <div class="row">
-        <label class="check"><input id="spin" type="checkbox" /> Auto-rotate</label>
+          <div class="card-graphic">
+            <svg class="cube-icon" width="84" height="84" viewBox="0 0 100 100" fill="none" opacity="0.6">
+              <g stroke="#1a2d28" stroke-width="1.5" stroke-linejoin="round">
+                <polygon points="50,14 78,28 50,42 22,28" fill="#e0e8e4"/>
+                <polygon points="22,28 50,42 50,74 22,60" fill="#1b853e"/>
+                <polygon points="50,42 78,28 78,60 50,74" fill="#b02428"/>
+              </g>
+            </svg>
+          </div>
+
+          <h2 class="card-title">四阶复仇魔方</h2>
+          <div class="card-title-en">Rubik's Revenge 4×4</div>
+          <div class="card-desc">
+            偶数阶无固定中心块，带来更深层次的降阶拼心挑战，以及独有的 OLL 与 PLL 特殊单翻棱/对换态。
+          </div>
+
+          <ul class="feature-list">
+            <li class="dimmed"><span class="bullet">✦</span> 四层同心环高维投影架构</li>
+            <li class="dimmed"><span class="bullet">✦</span> 偶数中轴与特殊单翻棱 (Parity) 识别</li>
+            <li class="dimmed"><span class="bullet">✦</span> 经典 Yau 氏与 Meyer 降阶体系支持</li>
+          </ul>
+        </div>
+
+        <div class="btn-launch locked">即将推出 · In Development</div>
       </div>
 
-      <div class="row hint">
-        Keys: <b>U D L R F B</b> turn · <b>Shift</b>+key reverses<br />
-        <b>Enter</b> scramble · <b>Backspace</b> undo · <b>Esc</b> reset
+      <!-- 5x5 Professor's Cube (COMING SOON) -->
+      <div class="cube-card disabled" title="五阶顶级魔方正在规划中！">
+        <div>
+          <div class="card-top">
+            <span class="dim-tag">5×5×5</span>
+            <span class="status-tag coming-soon">⏳ 规划中 · Planned</span>
+          </div>
+
+          <div class="card-graphic">
+            <svg class="cube-icon" width="84" height="84" viewBox="0 0 100 100" fill="none" opacity="0.45">
+              <g stroke="#1a2d28" stroke-width="1.2" stroke-linejoin="round">
+                <polygon points="50,14 78,28 50,42 22,28" fill="#ccd6d2"/>
+                <polygon points="22,28 50,42 50,74 22,60" fill="#156c32"/>
+                <polygon points="50,42 78,28 78,60 50,74" fill="#911e22"/>
+              </g>
+            </svg>
+          </div>
+
+          <h2 class="card-title">五阶大师魔方</h2>
+          <div class="card-title-en">Professor's Cube 5×5</div>
+          <div class="card-desc">
+            奇数高阶王冠，固定中心点回归。复杂三棱合并与 3×3 中心块配对，考验耐心与长远布局眼光。
+          </div>
+
+          <ul class="feature-list">
+            <li class="dimmed"><span class="bullet">✦</span> 五重同心环交点微积分映射</li>
+            <li class="dimmed"><span class="bullet">✦</span> 经典 Free-Slice 自由切片降阶解法</li>
+            <li class="dimmed"><span class="bullet">✦</span> 98 块色块超大规模状态拓扑分析</li>
+          </ul>
+        </div>
+
+        <div class="btn-launch locked">规划中 · Planned</div>
       </div>
-    </div>
+
+      <!-- 6x6 V-Cube 6 (COMING SOON) -->
+      <div class="cube-card disabled" title="六阶巨型魔方正在规划中！">
+        <div>
+          <div class="card-top">
+            <span class="dim-tag">6×6×6</span>
+            <span class="status-tag coming-soon">⏳ 规划中 · Planned</span>
+          </div>
+
+          <div class="card-graphic">
+            <svg class="cube-icon" width="84" height="84" viewBox="0 0 100 100" fill="none" opacity="0.38">
+              <g stroke="#1a2d28" stroke-width="1" stroke-linejoin="round">
+                <polygon points="50,14 78,28 50,42 22,28" fill="#bcc7c3"/>
+                <polygon points="22,28 50,42 50,74 22,60" fill="#115929"/>
+                <polygon points="50,42 78,28 78,60 50,74" fill="#75181b"/>
+              </g>
+            </svg>
+          </div>
+
+          <h2 class="card-title">六阶巨型魔方</h2>
+          <div class="card-title-en">V-Cube 6 6×6</div>
+          <div class="card-desc">
+            超高阶偶数魔方极致考验。内中外多层同心环精细定位，特殊态与高维对称性在此交织。
+          </div>
+
+          <ul class="feature-list">
+            <li class="dimmed"><span class="bullet">✦</span> 六层环面群论投影矩阵</li>
+            <li class="dimmed"><span class="bullet">✦</span> 偶数阶复合特殊翻棱态多步化解</li>
+            <li class="dimmed"><span class="bullet">✦</span> 152 块超高自由度物理机构模拟</li>
+          </ul>
+        </div>
+
+        <div class="btn-launch locked">规划中 · Planned</div>
+      </div>
+
+      <!-- 7x7 V-Cube 7 (COMING SOON) -->
+      <div class="cube-card disabled" title="七阶终极魔方正在规划中！">
+        <div>
+          <div class="card-top">
+            <span class="dim-tag">7×7×7</span>
+            <span class="status-tag coming-soon">⏳ 规划中 · Planned</span>
+          </div>
+
+          <div class="card-graphic">
+            <svg class="cube-icon" width="84" height="84" viewBox="0 0 100 100" fill="none" opacity="0.32">
+              <g stroke="#1a2d28" stroke-width="0.9" stroke-linejoin="round">
+                <polygon points="50,14 78,28 50,42 22,28" fill="#abb5b2"/>
+                <polygon points="22,28 50,42 50,74 22,60" fill="#0d4620"/>
+                <polygon points="50,42 78,28 78,60 50,74" fill="#5c1316"/>
+              </g>
+            </svg>
+          </div>
+
+          <h2 class="card-title">七阶终极魔方</h2>
+          <div class="card-title-en">V-Cube 7 7×7</div>
+          <div class="card-desc">
+            世界魔方协会 (WCA) 官方最高阶单体魔方。七重同心环全景数学映射，探索高阶几何的终极魅力。
+          </div>
+
+          <ul class="feature-list">
+            <li class="dimmed"><span class="bullet">✦</span> 七重同心环几何极限宏伟投影</li>
+            <li class="dimmed"><span class="bullet">✦</span> 218 个色块全状态无损双向映射</li>
+            <li class="dimmed"><span class="bullet">✦</span> 高维群论 Cayley 图论终极篇章</li>
+          </ul>
+        </div>
+
+        <div class="btn-launch locked">规划中 · Planned</div>
+      </div>
+    </main>
+
+    <!-- Project Features / Theory Section -->
+    <section class="features-section">
+      <div class="section-title">
+        <h2>核心系统特色 · ARCHITECTURE FEATURES</h2>
+        <p>独创的 3D 实体空间与 2D 同心圆环置换群投影实时双向映射体系</p>
+      </div>
+
+      <div class="feature-cards">
+        <div class="feature-card">
+          <div class="feature-card-header">
+            <span class="feature-card-icon">🔄</span>
+            <span class="feature-card-title">几何双向实时映射</span>
+          </div>
+          <div class="feature-card-desc">
+            无论旋转 3D 实体魔方还是在 2D 平面环线上滑动滚珠，三维转动与平面圆弧运动完全保持严格连续拓扑等价。
+          </div>
+        </div>
+
+        <div class="feature-card">
+          <div class="feature-card-header">
+            <span class="feature-card-icon">🧠</span>
+            <span class="feature-card-title">4 大体系同步求解</span>
+          </div>
+          <div class="feature-card-desc">
+            内建实时反演求解器，随魔方状态任意打乱动态分步展示当前最快解法，覆盖层先、CFOP、桥式 Roux 与 ZZ。
+          </div>
+        </div>
+
+        <div class="feature-card">
+          <div class="feature-card-header">
+            <span class="feature-card-icon">🛡️</span>
+            <span class="feature-card-title">全防误触抗压引擎</span>
+          </div>
+          <div class="feature-card-desc">
+            配备 24 步队列反压上限、动态自适应加速度补偿、60ms 硬件防抖与互斥锁保护，无惧任何狂暴连击与长按刷键。
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Footer -->
+    <footer>
+      <p>
+        换个角度，解开魔方 · Rubik's Circles Platform &copy; 2026<br />
+        <span style="opacity: 0.7;">3D WebGL / Three.js &middot; Mathematical Cayley Graph &middot; Multi-Method Solver</span>
+      </p>
+    </footer>
   </div>
 
-  <div id="ticker"><span id="lastMove">—</span></div>
+  <!-- Ambient Three.js Background Script -->
+  <script type="module">
+    import * as THREE from 'three';
 
-  <script type="module" src="./src/main.js"></script>
+    const canvas = document.getElementById('bg-canvas');
+    const renderer = new THREE.WebGLRenderer({ canvas, alpha: true, antialias: true });
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+    renderer.setSize(window.innerWidth, window.innerHeight);
+
+    const scene = new THREE.Scene();
+    const camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.1, 100);
+    camera.position.set(0, 0, 15);
+
+    // Floating subtle geometric rings
+    const ringGroup = new THREE.Group();
+    scene.add(ringGroup);
+
+    const ringMat1 = new THREE.LineBasicMaterial({ color: 0x6fe3c6, transparent: true, opacity: 0.18 });
+    const ringMat2 = new THREE.LineBasicMaterial({ color: 0xff8c1a, transparent: true, opacity: 0.14 });
+    const ringMat3 = new THREE.LineBasicMaterial({ color: 0x8fa8a1, transparent: true, opacity: 0.08 });
+
+    function createCircleGeo(radius, segments = 80) {
+      const pts = [];
+      for (let i = 0; i <= segments; i++) {
+        const th = (i / segments) * Math.PI * 2;
+        pts.push(new THREE.Vector3(Math.cos(th) * radius, Math.sin(th) * radius, 0));
+      }
+      return new THREE.BufferGeometry().setFromPoints(pts);
+    }
+
+    const r1 = new THREE.Line(createCircleGeo(5.5), ringMat1);
+    const r2 = new THREE.Line(createCircleGeo(4.0), ringMat2);
+    const r3 = new THREE.Line(createCircleGeo(6.8), ringMat3);
+    const r4 = new THREE.Line(createCircleGeo(2.8), ringMat1);
+
+    r1.rotation.x = 0.4; r1.rotation.y = 0.2;
+    r2.rotation.x = -0.3; r2.rotation.y = 0.5;
+    r3.rotation.x = 0.6; r3.rotation.y = -0.4;
+    r4.rotation.x = -0.5; r4.rotation.y = -0.2;
+
+    ringGroup.add(r1, r2, r3, r4);
+
+    // Subtle floating particles / cubie dots
+    const particleCount = 45;
+    const particleGeo = new THREE.BufferGeometry();
+    const positions = new Float32Array(particleCount * 3);
+    for (let i = 0; i < particleCount * 3; i += 3) {
+      positions[i] = (Math.random() - 0.5) * 18;
+      positions[i + 1] = (Math.random() - 0.5) * 18;
+      positions[i + 2] = (Math.random() - 0.5) * 8;
+    }
+    particleGeo.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+    const particleMat = new THREE.PointsMaterial({
+      color: 0x6fe3c6,
+      size: 0.08,
+      transparent: true,
+      opacity: 0.35,
+    });
+    const particles = new THREE.Points(particleGeo, particleMat);
+    scene.add(particles);
+
+    // Mouse parallax
+    let mouseX = 0, mouseY = 0;
+    window.addEventListener('mousemove', (e) => {
+      mouseX = (e.clientX / window.innerWidth - 0.5) * 2;
+      mouseY = -(e.clientY / window.innerHeight - 0.5) * 2;
+    });
+
+    window.addEventListener('resize', () => {
+      camera.aspect = window.innerWidth / window.innerHeight;
+      camera.updateProjectionMatrix();
+      renderer.setSize(window.innerWidth, window.innerHeight);
+    });
+
+    const clock = new THREE.Clock();
+    function animate() {
+      requestAnimationFrame(animate);
+      const dt = clock.getDelta();
+      ringGroup.rotation.z += dt * 0.04;
+      ringGroup.rotation.y += dt * 0.02;
+      particles.rotation.y += dt * 0.015;
+
+      // Soft mouse lerp
+      camera.position.x += (mouseX * 0.6 - camera.position.x) * 0.03;
+      camera.position.y += (mouseY * 0.4 - camera.position.y) * 0.03;
+      camera.lookAt(0, 0, 0);
+
+      renderer.render(scene, camera);
+    }
+    animate();
+  </script>
 </body>
 </html>
