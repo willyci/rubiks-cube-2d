@@ -251,7 +251,8 @@
     }
 
     .btn-update-solution {
-      display: flex;
+      display: inline-flex;
+      flex-direction: row !important;
       align-items: center;
       justify-content: center;
       gap: 7px;
@@ -559,8 +560,11 @@
       min-width: unset;
       transition: all 0.15s ease;
       display: inline-flex;
+      flex-direction: row;
       align-items: center;
+      justify-content: center;
       gap: 3px;
+      white-space: nowrap;
     }
 
     .hist-chip:hover {
@@ -599,8 +603,18 @@
     .grid-6 { display: grid; grid-template-columns: repeat(6, 1fr); gap: 4px; width: 100%; }
     .grid-6 button { padding: 5px 2px; font-size: 11px; }
     .grid-4 { display: grid; grid-template-columns: repeat(4, 1fr); gap: 5px; width: 100%; }
+    .grid-4 button { padding: 6px 2px; font-size: 10.5px; letter-spacing: 0.02em; gap: 3px; }
     .grid-3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 5px; width: 100%; }
+    .grid-3 button { padding: 6px 4px; font-size: 11px; gap: 4px; }
     .grid-2 { display: grid; grid-template-columns: repeat(2, 1fr); gap: 5px; width: 100%; }
+
+    .btn-icon-sub {
+      font-size: 11px;
+      line-height: 1;
+      display: inline-block;
+      flex-shrink: 0;
+      opacity: 0.9;
+    }
 
     button {
       font-family: inherit;
@@ -613,12 +627,14 @@
       letter-spacing: 0.05em;
       cursor: pointer;
       transition: all 0.15s ease;
-      display: flex;
-      flex-direction: column;
+      display: inline-flex;
+      flex-direction: row;
       align-items: center;
       justify-content: center;
+      gap: 3px;
       position: relative;
       min-width: 0;
+      white-space: nowrap;
     }
 
     button:hover {
@@ -648,7 +664,15 @@
       transform: none !important;
     }
 
-    .move-btn { height: 32px; font-weight: 600; }
+    .move-btn {
+      height: 32px;
+      font-weight: 600;
+      display: inline-flex;
+      flex-direction: row;
+      align-items: center;
+      justify-content: center;
+      gap: 2px;
+    }
     .move-btn::before {
       content: "";
       position: absolute;
@@ -697,6 +721,89 @@
       width: 15px;
       height: 15px;
     }
+
+    /* Modern Toggle Switch */
+    .toggle-switch {
+      position: relative;
+      display: inline-block;
+      width: 32px;
+      height: 18px;
+      flex-shrink: 0;
+    }
+    .toggle-switch input {
+      opacity: 0;
+      width: 0;
+      height: 0;
+    }
+    .toggle-slider {
+      position: absolute;
+      cursor: pointer;
+      inset: 0;
+      background: rgba(255, 255, 255, 0.12);
+      border: 1px solid var(--line);
+      border-radius: 18px;
+      transition: all 0.2s ease;
+    }
+    .toggle-slider:before {
+      position: absolute;
+      content: "";
+      height: 12px;
+      width: 12px;
+      left: 2px;
+      bottom: 2px;
+      background: var(--muted);
+      border-radius: 50%;
+      transition: all 0.2s ease;
+    }
+    .toggle-switch input:checked + .toggle-slider {
+      background: rgba(111, 227, 198, 0.3);
+      border-color: var(--cyan);
+    }
+    .toggle-switch input:checked + .toggle-slider:before {
+      transform: translateX(14px);
+      background: var(--cyan);
+      box-shadow: 0 0 6px var(--cyan);
+    }
+
+    .color-blind-legend {
+      display: none;
+      width: 100%;
+      margin-top: 5px;
+      font-size: 10.5px;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+      color: var(--muted);
+      justify-content: space-between;
+      padding: 3px 6px;
+      background: rgba(0, 0, 0, 0.25);
+      border-radius: 6px;
+      border: 1px solid rgba(190, 216, 210, 0.15);
+    }
+    body.color-blind-mode .color-blind-legend {
+      display: flex;
+    }
+
+    /* Move buttons, circle buttons, and history chips color blind symbols (placed on the right of text) */
+    body.color-blind-mode .move-btn[data-face="U"]::after { content: "○"; font-size: 8.5px; opacity: 0.95; margin-left: 2px; color: #f5f5f5; }
+    body.color-blind-mode .move-btn[data-face="D"]::after { content: "●"; font-size: 8.5px; opacity: 0.95; margin-left: 2px; color: #ffd500; }
+    body.color-blind-mode .move-btn[data-face="F"]::after { content: "✚"; font-size: 8.5px; opacity: 0.95; margin-left: 2px; color: #00d084; }
+    body.color-blind-mode .move-btn[data-face="B"]::after { content: "△"; font-size: 8.5px; opacity: 0.95; margin-left: 2px; color: #0080ff; }
+    body.color-blind-mode .move-btn[data-face="R"]::after { content: "□"; font-size: 8.5px; opacity: 0.95; margin-left: 2px; color: #ff4d4f; }
+    body.color-blind-mode .move-btn[data-face="L"]::after { content: "★"; font-size: 8.5px; opacity: 0.95; margin-left: 2px; color: #ff9900; }
+
+    body.color-blind-mode .circle-rot-btn[data-face="U"]::after { content: " ○"; font-size: 8px; opacity: 0.95; color: #f5f5f5; }
+    body.color-blind-mode .circle-rot-btn[data-face="D"]::after { content: " ●"; font-size: 8px; opacity: 0.95; color: #ffd500; }
+    body.color-blind-mode .circle-rot-btn[data-face="F"]::after { content: " ✚"; font-size: 8px; opacity: 0.95; color: #00d084; }
+    body.color-blind-mode .circle-rot-btn[data-face="B"]::after { content: " △"; font-size: 8px; opacity: 0.95; color: #0080ff; }
+    body.color-blind-mode .circle-rot-btn[data-face="R"]::after { content: " □"; font-size: 8px; opacity: 0.95; color: #ff4d4f; }
+    body.color-blind-mode .circle-rot-btn[data-face="L"]::after { content: " ★"; font-size: 8px; opacity: 0.95; color: #ff9900; }
+
+    body.color-blind-mode .hist-chip[data-face="U"]::after { content: "○"; font-size: 8px; opacity: 0.95; margin-left: 3px; color: #f5f5f5; }
+    body.color-blind-mode .hist-chip[data-face="D"]::after { content: "●"; font-size: 8px; opacity: 0.95; margin-left: 3px; color: #ffd500; }
+    body.color-blind-mode .hist-chip[data-face="F"]::after { content: "✚"; font-size: 8px; opacity: 0.95; margin-left: 3px; color: #00d084; }
+    body.color-blind-mode .hist-chip[data-face="B"]::after { content: "△"; font-size: 8px; opacity: 0.95; margin-left: 3px; color: #0080ff; }
+    body.color-blind-mode .hist-chip[data-face="R"]::after { content: "□"; font-size: 8px; opacity: 0.95; margin-left: 3px; color: #ff4d4f; }
+    body.color-blind-mode .hist-chip[data-face="L"]::after { content: "★"; font-size: 8px; opacity: 0.95; margin-left: 3px; color: #ff9900; }
+
 
     #ticker {
       position: fixed;
@@ -1170,23 +1277,23 @@
         <div class="hud-col">
           <div class="row label">Actions · 快捷操作</div>
           <div class="row grid-4">
-            <button data-act="scramble" title="随机打乱魔方">Scramble</button>
-            <button data-act="solve" title="按公式分步还原">Solve</button>
-            <button data-act="undo" title="撤回上一步">Undo</button>
-            <button data-act="reset" title="复位到完全还原状态">Reset</button>
+            <button data-act="scramble" title="随机打乱魔方"><span class="btn-icon-sub">🔀</span><span>Scramble</span></button>
+            <button data-act="solve" title="按公式分步还原"><span class="btn-icon-sub">✨</span><span>Solve</span></button>
+            <button data-act="undo" title="撤回上一步"><span class="btn-icon-sub">↩</span><span>Undo</span></button>
+            <button data-act="reset" title="复位到完全还原状态"><span class="btn-icon-sub">↺</span><span>Reset</span></button>
           </div>
 
           <div class="row label" style="margin-top: 4px;">View & Controls · 视图与控制</div>
           <div class="row grid-3" id="view-mode">
-            <button data-view="both" class="active">Both</button>
-            <button data-view="cube">Cube</button>
-            <button data-view="circles">Circles</button>
+            <button data-view="both" class="active"><span class="btn-icon-sub">◫</span><span>Both</span></button>
+            <button data-view="cube"><span class="btn-icon-sub">🧊</span><span>Cube</span></button>
+            <button data-view="circles"><span class="btn-icon-sub">◎</span><span>Circles</span></button>
           </div>
           <div class="row grid-4" style="margin-bottom: 8px;">
-            <button id="hudBtnCtrlHide" title="隐藏所有旋转图标">Hide</button>
-            <button id="hudBtnCtrlCorner" title="角块控制">Corner</button>
-            <button id="hudBtnCtrlLevel" title="层级控制">Level</button>
-            <button id="hudBtnCtrlFace" class="active" title="面旋转控制 (顺/逆时针)">Face</button>
+            <button id="hudBtnCtrlHide" title="隐藏所有旋转图标"><span class="btn-icon-sub">⊘</span><span>Hide</span></button>
+            <button id="hudBtnCtrlCorner" title="角块控制"><span class="btn-icon-sub">◸</span><span>Corner</span></button>
+            <button id="hudBtnCtrlLevel" title="层级控制"><span class="btn-icon-sub">⬒</span><span>Level</span></button>
+            <button id="hudBtnCtrlFace" class="active" title="面旋转控制 (顺/逆时针)"><span class="btn-icon-sub">▣</span><span>Face</span></button>
           </div>
 
           <div class="row label" style="margin-top: 4px;">Settings · 速度与视角</div>
@@ -1198,6 +1305,27 @@
             <div class="toggle-row" style="flex: 1; justify-content: flex-end; gap: 8px;">
               <span style="font-size: 11px;">Auto-rotate</span>
               <input type="checkbox" id="auto-rotate" />
+            </div>
+          </div>
+
+          <div class="row" style="display: flex; flex-direction: column; margin-top: 6px; margin-bottom: 0;">
+            <div class="toggle-row" style="justify-content: space-between; width: 100%;">
+              <span style="display: inline-flex; align-items: center; gap: 6px; font-size: 11px;">
+                <span style="font-size: 13px;">👁️</span>
+                <span>色弱模式 · Color Blind Mode</span>
+              </span>
+              <label class="toggle-switch" title="开启/关闭色弱辅助符号 · Toggle Color Blind Symbols">
+                <input type="checkbox" id="color-blind-toggle" />
+                <span class="toggle-slider"></span>
+              </label>
+            </div>
+            <div class="color-blind-legend" id="colorBlindLegend" title="各面对应符号与高对比色 · Face Symbols & High-Contrast Colors">
+              <span style="background: #f5f5f5; color: #111111; padding: 2px 6px; border-radius: 4px; font-weight: 700; box-shadow: 0 1px 3px rgba(0,0,0,0.3);">U ○</span>
+              <span style="background: #ffd500; color: #111111; padding: 2px 6px; border-radius: 4px; font-weight: 700; box-shadow: 0 1px 3px rgba(0,0,0,0.3);">D ●</span>
+              <span style="background: #1fa04a; color: #ffffff; padding: 2px 6px; border-radius: 4px; font-weight: 700; box-shadow: 0 1px 3px rgba(0,0,0,0.3);">F ✚</span>
+              <span style="background: #1663c7; color: #ffffff; padding: 2px 6px; border-radius: 4px; font-weight: 700; box-shadow: 0 1px 3px rgba(0,0,0,0.3);">B △</span>
+              <span style="background: #d6262b; color: #ffffff; padding: 2px 6px; border-radius: 4px; font-weight: 700; box-shadow: 0 1px 3px rgba(0,0,0,0.3);">R □</span>
+              <span style="background: #e07a20; color: #ffffff; padding: 2px 6px; border-radius: 4px; font-weight: 700; box-shadow: 0 1px 3px rgba(0,0,0,0.3);">L ★</span>
             </div>
           </div>
         </div>
@@ -1229,6 +1357,45 @@
       L: 0xe07a20, // Orange
     };
 
+    const FACE_HEX_STRINGS = {
+      U: '#f5f5f5',
+      D: '#f7d91a',
+      F: '#1fa04a',
+      B: '#1663c7',
+      R: '#d6262b',
+      L: '#e07a20',
+    };
+
+    const OPPOSITE_FACES = {
+      U: 'D',
+      D: 'U',
+      F: 'B',
+      B: 'F',
+      R: 'L',
+      L: 'R',
+    };
+
+    const FACE_SYMBOLS = {
+      U: 'circle',
+      D: 'dot',
+      F: 'cross',
+      B: 'triangle',
+      R: 'square',
+      L: 'star',
+    };
+
+    // Maximum contrast symbol colors:
+    // Light backgrounds (White, Yellow) -> Black symbol (#111111)
+    // Dark / saturated backgrounds (Green, Blue, Red, Orange) -> White symbol (#ffffff)
+    const SYMBOL_COLORS = {
+      U: '#111111',
+      D: '#111111',
+      F: '#ffffff',
+      B: '#ffffff',
+      R: '#ffffff',
+      L: '#ffffff',
+    };
+
     const FACES = ['U', 'D', 'F', 'B', 'R', 'L'];
 
     const NORMALS = {
@@ -1252,7 +1419,7 @@
       D: 0.82,       // distance from origin to circle centers
       r0: 1.0,       // base radius of middle ring
       delta: 0.12,   // spacing between inner and outer rings
-      beadSize: 0.14,
+      beadSize: 0.21, // 1.5x bigger (0.14 * 1.5)
       frustum: 2.38,
     };
 
@@ -1350,6 +1517,129 @@
     }
 
     // ------------------------------------------------------------- Textures & Sprites
+    /**
+     * Draw accessible geometric symbol on canvas with maximum contrast:
+     * - U (White): bold black circle (○)
+     * - D (Yellow): bold black single big dot (●)
+     * - F (Green): bold white cross (✚)
+     * - B (Blue): bold white triangle (△)
+     * - R (Red): bold white square (□)
+     * - L (Orange): bold white star (★)
+     */
+    function drawFaceSymbol(ctx, face, cx, cy, radius) {
+      ctx.save();
+      const fgColor = SYMBOL_COLORS[face] || '#ffffff';
+      const isBlack = (fgColor === '#111111');
+      const shadowColor = isBlack ? 'rgba(0, 0, 0, 0.15)' : 'rgba(0, 0, 0, 0.6)';
+
+      if (face === 'U') {
+        // Circle (outline)
+        const r = radius * 0.62;
+        ctx.lineWidth = 11;
+        ctx.strokeStyle = fgColor; // Deep black
+        ctx.beginPath();
+        ctx.arc(cx, cy, r, 0, Math.PI * 2);
+        ctx.stroke();
+      } else if (face === 'D') {
+        // Single big dot (solid disc)
+        const r = radius * 0.58;
+        ctx.fillStyle = fgColor; // Deep black
+        ctx.beginPath();
+        ctx.arc(cx, cy, r, 0, Math.PI * 2);
+        ctx.fill();
+      } else if (face === 'F') {
+        // Cross (✚)
+        const arm = radius * 0.68;
+        ctx.lineCap = 'round';
+        ctx.lineWidth = 15;
+        ctx.strokeStyle = shadowColor;
+        ctx.beginPath();
+        ctx.moveTo(cx - arm, cy); ctx.lineTo(cx + arm, cy);
+        ctx.moveTo(cx, cy - arm); ctx.lineTo(cx, cy + arm);
+        ctx.stroke();
+
+        ctx.lineWidth = 9;
+        ctx.strokeStyle = fgColor; // Pure white
+        ctx.beginPath();
+        ctx.moveTo(cx - arm, cy); ctx.lineTo(cx + arm, cy);
+        ctx.moveTo(cx, cy - arm); ctx.lineTo(cx, cy + arm);
+        ctx.stroke();
+      } else if (face === 'B') {
+        // Triangle (△)
+        const h = radius * 0.72;
+        const w = radius * 0.72;
+        const p1 = { x: cx, y: cy - h * 0.78 };
+        const p2 = { x: cx - w * 0.86, y: cy + h * 0.62 };
+        const p3 = { x: cx + w * 0.86, y: cy + h * 0.62 };
+        ctx.lineJoin = 'round';
+        ctx.lineCap = 'round';
+        ctx.lineWidth = 15;
+        ctx.strokeStyle = shadowColor;
+        ctx.beginPath();
+        ctx.moveTo(p1.x, p1.y); ctx.lineTo(p2.x, p2.y); ctx.lineTo(p3.x, p3.y);
+        ctx.closePath();
+        ctx.stroke();
+
+        ctx.lineWidth = 9;
+        ctx.strokeStyle = fgColor; // Pure white
+        ctx.beginPath();
+        ctx.moveTo(p1.x, p1.y); ctx.lineTo(p2.x, p2.y); ctx.lineTo(p3.x, p3.y);
+        ctx.closePath();
+        ctx.stroke();
+      } else if (face === 'R') {
+        // Square (□)
+        const half = radius * 0.52;
+        const r = 5;
+        ctx.lineJoin = 'round';
+        function roundRect(x, y, w, h, rad) {
+          ctx.beginPath();
+          ctx.moveTo(x + rad, y);
+          ctx.arcTo(x + w, y, x + w, y + h, rad);
+          ctx.arcTo(x + w, y + h, x, y + h, rad);
+          ctx.arcTo(x, y + h, x, y, rad);
+          ctx.arcTo(x, y, x + w, y, rad);
+          ctx.closePath();
+        }
+        ctx.lineWidth = 15;
+        ctx.strokeStyle = shadowColor;
+        roundRect(cx - half, cy - half, half * 2, half * 2, r);
+        ctx.stroke();
+
+        ctx.lineWidth = 9;
+        ctx.strokeStyle = fgColor; // Pure white
+        roundRect(cx - half, cy - half, half * 2, half * 2, r);
+        ctx.stroke();
+      } else if (face === 'L') {
+        // Star (★)
+        const outerR = radius * 0.72;
+        const innerR = radius * 0.32;
+        function starPath() {
+          ctx.beginPath();
+          for (let i = 0; i < 10; i++) {
+            const r = (i % 2 === 0) ? outerR : innerR;
+            const a = (i * Math.PI / 5) - Math.PI / 2;
+            const x = cx + Math.cos(a) * r;
+            const y = cy + Math.sin(a) * r;
+            if (i === 0) ctx.moveTo(x, y);
+            else ctx.lineTo(x, y);
+          }
+          ctx.closePath();
+        }
+        starPath();
+        ctx.lineWidth = 6;
+        ctx.strokeStyle = shadowColor;
+        ctx.stroke();
+
+        starPath();
+        ctx.fillStyle = fgColor; // Pure white
+        ctx.fill();
+        ctx.lineWidth = 2;
+        ctx.strokeStyle = shadowColor;
+        ctx.stroke();
+      }
+      ctx.restore();
+    }
+
     /** Glossy 3D-shaded bead sprite */
     function createBeadTexture() {
       const s = 128;
@@ -1371,7 +1661,36 @@
       return tex;
     }
 
-    /** Rounded sticker texture for 3D cubies */
+    /** Flat color-blind bead texture: solid flat color disc with no 3D gradient or glossy effect */
+    function createColorBlindBeadTexture(face) {
+      const s = 128;
+      const c = document.createElement('canvas');
+      c.width = c.height = s;
+      const g = c.getContext('2d');
+
+      const baseColor = FACE_HEX_STRINGS[face];
+      const r = s * 0.47;
+
+      // Flat solid circle in face color
+      g.fillStyle = baseColor;
+      g.beginPath();
+      g.arc(s / 2, s / 2, r, 0, Math.PI * 2);
+      g.fill();
+
+      // Clean subtle edge stroke for crisp shape boundary
+      g.strokeStyle = 'rgba(0, 0, 0, 0.25)';
+      g.lineWidth = 3;
+      g.stroke();
+
+      // High contrast flat symbol
+      drawFaceSymbol(g, face, s / 2, s / 2, s * 0.40);
+
+      const tex = new THREE.CanvasTexture(c);
+      tex.colorSpace = THREE.SRGBColorSpace;
+      return tex;
+    }
+
+    /** Rounded sticker texture for 3D cubies (clean white mask) */
     function createStickerTexture() {
       const s = 128;
       const c = document.createElement('canvas');
@@ -1393,6 +1712,37 @@
       return tex;
     }
 
+    /** Rounded sticker texture with face color and high-contrast symbol for 3D cubies */
+    function createColorBlindStickerTexture(face) {
+      const s = 128;
+      const c = document.createElement('canvas');
+      c.width = c.height = s;
+      const g = c.getContext('2d');
+      const r = s * 0.18;
+      const p = s * 0.06;
+
+      g.fillStyle = FACE_HEX_STRINGS[face];
+      g.beginPath();
+      g.moveTo(p + r, p);
+      g.arcTo(s - p, p, s - p, s - p, r);
+      g.arcTo(s - p, s - p, p, s - p, r);
+      g.arcTo(p, s - p, p, p, r);
+      g.arcTo(p, p, s - p, p, r);
+      g.closePath();
+      g.fill();
+
+      // Subtle inner rim border for premium finish
+      g.strokeStyle = 'rgba(0, 0, 0, 0.2)';
+      g.lineWidth = 3;
+      g.stroke();
+
+      drawFaceSymbol(g, face, s / 2, s / 2, s * 0.44);
+
+      const tex = new THREE.CanvasTexture(c);
+      tex.colorSpace = THREE.SRGBColorSpace;
+      return tex;
+    }
+
     // ------------------------------------------------------------- 3D Solid 2x2 Rubik's Cube
     class RubiksCube {
       constructor() {
@@ -1402,12 +1752,34 @@
         this.views = [];
 
         this._stickerTex = createStickerTexture();
+        this._colorBlindStickerTex = {};
+        for (const f of FACES) {
+          this._colorBlindStickerTex[f] = createColorBlindStickerTexture(f);
+        }
+        this._isColorBlind = false;
+
         this._build();
       }
 
       addView(view) {
         this.views.push(view);
         view.sync();
+      }
+
+      setColorBlindMode(enabled) {
+        this._isColorBlind = !!enabled;
+        for (const f of FACES) {
+          if (this.stickerMats[f]) {
+            if (this._isColorBlind) {
+              this.stickerMats[f].map = this._colorBlindStickerTex[f];
+              this.stickerMats[f].color.setHex(0xffffff);
+            } else {
+              this.stickerMats[f].map = this._stickerTex;
+              this.stickerMats[f].color.setHex(COLORS[f]);
+            }
+            this.stickerMats[f].needsUpdate = true;
+          }
+        }
       }
 
       _build() {
@@ -1419,11 +1791,11 @@
         });
         const stickerGeo = new THREE.PlaneGeometry(0.84, 0.84);
 
-        const stickerMats = {};
+        this.stickerMats = {};
         for (const f of FACES) {
-          stickerMats[f] = new THREE.MeshStandardMaterial({
-            color: COLORS[f],
-            map: this._stickerTex,
+          this.stickerMats[f] = new THREE.MeshStandardMaterial({
+            color: this._isColorBlind ? 0xffffff : COLORS[f],
+            map: this._isColorBlind ? this._colorBlindStickerTex[f] : this._stickerTex,
             transparent: true,
             alphaTest: 0.35,
             roughness: 0.38,
@@ -1449,7 +1821,7 @@
                 const n = NORMALS[f];
                 if (home.dot(n) !== 1) continue;
 
-                const mesh = new THREE.Mesh(stickerGeo, stickerMats[f]);
+                const mesh = new THREE.Mesh(stickerGeo, this.stickerMats[f]);
                 mesh.position.copy(n).multiplyScalar(0.501);
                 mesh.lookAt(mesh.position.clone().add(n));
                 solid.add(mesh);
@@ -1576,6 +1948,13 @@
         this.camera = new THREE.OrthographicCamera(-1, 1, 1, -1, 0.1, 20);
         this.camera.position.set(0, 0, 5);
 
+        this._defaultBeadTex = createBeadTexture();
+        this._colorBlindBeadTex = {};
+        for (const f of FACES) {
+          this._colorBlindBeadTex[f] = createColorBlindBeadTexture(f);
+        }
+        this._isColorBlind = false;
+
         this.rings = []; // { axis, slice, line, glowLine, mat, glowMat, center, radius }
         this.dots = new Map(); // sticker -> Mesh
         this.activeMove = null;
@@ -1583,6 +1962,22 @@
         this._buildRings();
         this._buildDots();
         this.resize(window.innerWidth, window.innerHeight);
+      }
+
+      setColorBlindMode(enabled) {
+        this._isColorBlind = !!enabled;
+        for (const f of FACES) {
+          if (this.beadMats[f]) {
+            if (this._isColorBlind) {
+              this.beadMats[f].map = this._colorBlindBeadTex[f];
+              this.beadMats[f].color.setHex(0xffffff);
+            } else {
+              this.beadMats[f].map = this._defaultBeadTex;
+              this.beadMats[f].color.setHex(COLORS[f]);
+            }
+            this.beadMats[f].needsUpdate = true;
+          }
+        }
       }
 
       _buildRings() {
@@ -1628,22 +2023,18 @@
 
       _buildDots() {
         const geo = new THREE.PlaneGeometry(RING_CONFIG.beadSize, RING_CONFIG.beadSize);
-        const tex = createBeadTexture();
-        const mats = new Map();
+        this.beadMats = {};
+        for (const f of FACES) {
+          this.beadMats[f] = new THREE.MeshBasicMaterial({
+            color: this._isColorBlind ? 0xffffff : COLORS[f],
+            map: this._isColorBlind ? this._colorBlindBeadTex[f] : this._defaultBeadTex,
+            transparent: true,
+            depthWrite: false,
+          });
+        }
 
         for (const sticker of this.cube.stickers) {
-          if (!mats.has(sticker.color)) {
-            mats.set(
-              sticker.color,
-              new THREE.MeshBasicMaterial({
-                color: sticker.color,
-                map: tex,
-                transparent: true,
-                depthWrite: false,
-              })
-            );
-          }
-          const mesh = new THREE.Mesh(geo, mats.get(sticker.color));
+          const mesh = new THREE.Mesh(geo, this.beadMats[sticker.home]);
           mesh.position.z = 0.05;
           this.scene.add(mesh);
           this.dots.set(sticker, mesh);
@@ -2554,6 +2945,16 @@
       controls.autoRotate = e.target.checked;
       controls.autoRotateSpeed = 1.6;
     });
+
+    const colorBlindToggle = document.getElementById('color-blind-toggle');
+    if (colorBlindToggle) {
+      colorBlindToggle.addEventListener('change', (e) => {
+        const enabled = e.target.checked;
+        cube.setColorBlindMode(enabled);
+        diagram.setColorBlindMode(enabled);
+        document.body.classList.toggle('color-blind-mode', enabled);
+      });
+    }
 
     const ticker = document.getElementById('ticker');
 
