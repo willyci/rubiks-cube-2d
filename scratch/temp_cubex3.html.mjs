@@ -19,6 +19,45 @@
       L: 0xe07a20, // Orange
     };
 
+    const FACE_HEX_STRINGS = {
+      U: '#f5f5f5',
+      D: '#f7d91a',
+      F: '#1fa04a',
+      B: '#1663c7',
+      R: '#d6262b',
+      L: '#e07a20',
+    };
+
+    const OPPOSITE_FACES = {
+      U: 'D',
+      D: 'U',
+      F: 'B',
+      B: 'F',
+      R: 'L',
+      L: 'R',
+    };
+
+    const FACE_SYMBOLS = {
+      U: 'circle',
+      D: 'dot',
+      F: 'cross',
+      B: 'triangle',
+      R: 'square',
+      L: 'star',
+    };
+
+    // Maximum contrast symbol colors:
+    // Light backgrounds (White, Yellow) -> Black symbol (#111111)
+    // Dark / saturated backgrounds (Green, Blue, Red, Orange) -> White symbol (#ffffff)
+    const SYMBOL_COLORS = {
+      U: '#111111',
+      D: '#111111',
+      F: '#ffffff',
+      B: '#ffffff',
+      R: '#ffffff',
+      L: '#ffffff',
+    };
+
     const FACES = ['U', 'D', 'F', 'B', 'R', 'L'];
 
     const NORMALS = {
@@ -37,12 +76,12 @@
       return null;
     }
 
-    // Geometry parameters of the 2D Three-Ring System (mathematical projection)
+    // Geometry parameters of the 2D Three-Ring System for 3x3
     const RING_CONFIG = {
       D: 0.82,       // distance from origin to circle centers
       r0: 1.0,       // base radius of middle ring
       delta: 0.115,  // spacing between concentric rings
-      beadSize: 0.115,
+      beadSize: 0.088, // sized so 3x3 beads maintain clean separation without touching (min center distance is ~0.115)
       frustum: 2.38,
     };
 
@@ -123,6 +162,129 @@
     }
 
     // ------------------------------------------------------------- Textures & Sprites
+    /**
+     * Draw accessible geometric symbol on canvas with maximum contrast:
+     * - U (White): bold black circle (○)
+     * - D (Yellow): bold black single big dot (●)
+     * - F (Green): bold white cross (✚)
+     * - B (Blue): bold white triangle (△)
+     * - R (Red): bold white square (□)
+     * - L (Orange): bold white star (★)
+     */
+    function drawFaceSymbol(ctx, face, cx, cy, radius) {
+      ctx.save();
+      const fgColor = SYMBOL_COLORS[face] || '#ffffff';
+      const isBlack = (fgColor === '#111111');
+      const shadowColor = isBlack ? 'rgba(0, 0, 0, 0.15)' : 'rgba(0, 0, 0, 0.6)';
+
+      if (face === 'U') {
+        // Circle (outline)
+        const r = radius * 0.62;
+        ctx.lineWidth = 11;
+        ctx.strokeStyle = fgColor; // Deep black
+        ctx.beginPath();
+        ctx.arc(cx, cy, r, 0, Math.PI * 2);
+        ctx.stroke();
+      } else if (face === 'D') {
+        // Single big dot (solid disc)
+        const r = radius * 0.58;
+        ctx.fillStyle = fgColor; // Deep black
+        ctx.beginPath();
+        ctx.arc(cx, cy, r, 0, Math.PI * 2);
+        ctx.fill();
+      } else if (face === 'F') {
+        // Cross (✚)
+        const arm = radius * 0.68;
+        ctx.lineCap = 'round';
+        ctx.lineWidth = 15;
+        ctx.strokeStyle = shadowColor;
+        ctx.beginPath();
+        ctx.moveTo(cx - arm, cy); ctx.lineTo(cx + arm, cy);
+        ctx.moveTo(cx, cy - arm); ctx.lineTo(cx, cy + arm);
+        ctx.stroke();
+
+        ctx.lineWidth = 9;
+        ctx.strokeStyle = fgColor; // Pure white
+        ctx.beginPath();
+        ctx.moveTo(cx - arm, cy); ctx.lineTo(cx + arm, cy);
+        ctx.moveTo(cx, cy - arm); ctx.lineTo(cx, cy + arm);
+        ctx.stroke();
+      } else if (face === 'B') {
+        // Triangle (△)
+        const h = radius * 0.72;
+        const w = radius * 0.72;
+        const p1 = { x: cx, y: cy - h * 0.78 };
+        const p2 = { x: cx - w * 0.86, y: cy + h * 0.62 };
+        const p3 = { x: cx + w * 0.86, y: cy + h * 0.62 };
+        ctx.lineJoin = 'round';
+        ctx.lineCap = 'round';
+        ctx.lineWidth = 15;
+        ctx.strokeStyle = shadowColor;
+        ctx.beginPath();
+        ctx.moveTo(p1.x, p1.y); ctx.lineTo(p2.x, p2.y); ctx.lineTo(p3.x, p3.y);
+        ctx.closePath();
+        ctx.stroke();
+
+        ctx.lineWidth = 9;
+        ctx.strokeStyle = fgColor; // Pure white
+        ctx.beginPath();
+        ctx.moveTo(p1.x, p1.y); ctx.lineTo(p2.x, p2.y); ctx.lineTo(p3.x, p3.y);
+        ctx.closePath();
+        ctx.stroke();
+      } else if (face === 'R') {
+        // Square (□)
+        const half = radius * 0.52;
+        const r = 5;
+        ctx.lineJoin = 'round';
+        function roundRect(x, y, w, h, rad) {
+          ctx.beginPath();
+          ctx.moveTo(x + rad, y);
+          ctx.arcTo(x + w, y, x + w, y + h, rad);
+          ctx.arcTo(x + w, y + h, x, y + h, rad);
+          ctx.arcTo(x, y + h, x, y, rad);
+          ctx.arcTo(x, y, x + w, y, rad);
+          ctx.closePath();
+        }
+        ctx.lineWidth = 15;
+        ctx.strokeStyle = shadowColor;
+        roundRect(cx - half, cy - half, half * 2, half * 2, r);
+        ctx.stroke();
+
+        ctx.lineWidth = 9;
+        ctx.strokeStyle = fgColor; // Pure white
+        roundRect(cx - half, cy - half, half * 2, half * 2, r);
+        ctx.stroke();
+      } else if (face === 'L') {
+        // Star (★)
+        const outerR = radius * 0.72;
+        const innerR = radius * 0.32;
+        function starPath() {
+          ctx.beginPath();
+          for (let i = 0; i < 10; i++) {
+            const r = (i % 2 === 0) ? outerR : innerR;
+            const a = (i * Math.PI / 5) - Math.PI / 2;
+            const x = cx + Math.cos(a) * r;
+            const y = cy + Math.sin(a) * r;
+            if (i === 0) ctx.moveTo(x, y);
+            else ctx.lineTo(x, y);
+          }
+          ctx.closePath();
+        }
+        starPath();
+        ctx.lineWidth = 6;
+        ctx.strokeStyle = shadowColor;
+        ctx.stroke();
+
+        starPath();
+        ctx.fillStyle = fgColor; // Pure white
+        ctx.fill();
+        ctx.lineWidth = 2;
+        ctx.strokeStyle = shadowColor;
+        ctx.stroke();
+      }
+      ctx.restore();
+    }
+
     /** Glossy 3D-shaded bead sprite */
     function createBeadTexture() {
       const s = 128;
@@ -144,7 +306,36 @@
       return tex;
     }
 
-    /** Rounded sticker texture for 3D cubies */
+    /** Flat color-blind bead texture: solid flat color disc with no 3D gradient or glossy effect */
+    function createColorBlindBeadTexture(face) {
+      const s = 128;
+      const c = document.createElement('canvas');
+      c.width = c.height = s;
+      const g = c.getContext('2d');
+
+      const baseColor = FACE_HEX_STRINGS[face];
+      const r = s * 0.47;
+
+      // Flat solid circle in face color
+      g.fillStyle = baseColor;
+      g.beginPath();
+      g.arc(s / 2, s / 2, r, 0, Math.PI * 2);
+      g.fill();
+
+      // Clean subtle edge stroke for crisp shape boundary
+      g.strokeStyle = 'rgba(0, 0, 0, 0.25)';
+      g.lineWidth = 3;
+      g.stroke();
+
+      // High contrast flat symbol
+      drawFaceSymbol(g, face, s / 2, s / 2, s * 0.40);
+
+      const tex = new THREE.CanvasTexture(c);
+      tex.colorSpace = THREE.SRGBColorSpace;
+      return tex;
+    }
+
+    /** Rounded sticker texture for 3D cubies (clean white mask) */
     function createStickerTexture() {
       const s = 128;
       const c = document.createElement('canvas');
@@ -166,6 +357,37 @@
       return tex;
     }
 
+    /** Rounded sticker texture with face color and high-contrast symbol for 3D cubies */
+    function createColorBlindStickerTexture(face) {
+      const s = 128;
+      const c = document.createElement('canvas');
+      c.width = c.height = s;
+      const g = c.getContext('2d');
+      const r = s * 0.18;
+      const p = s * 0.06;
+
+      g.fillStyle = FACE_HEX_STRINGS[face];
+      g.beginPath();
+      g.moveTo(p + r, p);
+      g.arcTo(s - p, p, s - p, s - p, r);
+      g.arcTo(s - p, s - p, p, s - p, r);
+      g.arcTo(p, s - p, p, p, r);
+      g.arcTo(p, p, s - p, p, r);
+      g.closePath();
+      g.fill();
+
+      // Subtle inner rim border for premium finish
+      g.strokeStyle = 'rgba(0, 0, 0, 0.2)';
+      g.lineWidth = 3;
+      g.stroke();
+
+      drawFaceSymbol(g, face, s / 2, s / 2, s * 0.44);
+
+      const tex = new THREE.CanvasTexture(c);
+      tex.colorSpace = THREE.SRGBColorSpace;
+      return tex;
+    }
+
     // ------------------------------------------------------------- 3D Solid Rubik's Cube
     class RubiksCube {
       constructor() {
@@ -175,12 +397,34 @@
         this.views = [];
 
         this._stickerTex = createStickerTexture();
+        this._colorBlindStickerTex = {};
+        for (const f of FACES) {
+          this._colorBlindStickerTex[f] = createColorBlindStickerTexture(f);
+        }
+        this._isColorBlind = false;
+
         this._build();
       }
 
       addView(view) {
         this.views.push(view);
         view.sync();
+      }
+
+      setColorBlindMode(enabled) {
+        this._isColorBlind = !!enabled;
+        for (const f of FACES) {
+          if (this.stickerMats[f]) {
+            if (this._isColorBlind) {
+              this.stickerMats[f].map = this._colorBlindStickerTex[f];
+              this.stickerMats[f].color.setHex(0xffffff);
+            } else {
+              this.stickerMats[f].map = this._stickerTex;
+              this.stickerMats[f].color.setHex(COLORS[f]);
+            }
+            this.stickerMats[f].needsUpdate = true;
+          }
+        }
       }
 
       _build() {
@@ -192,11 +436,11 @@
         });
         const stickerGeo = new THREE.PlaneGeometry(0.82, 0.82);
 
-        const stickerMats = {};
+        this.stickerMats = {};
         for (const f of FACES) {
-          stickerMats[f] = new THREE.MeshStandardMaterial({
-            color: COLORS[f],
-            map: this._stickerTex,
+          this.stickerMats[f] = new THREE.MeshStandardMaterial({
+            color: this._isColorBlind ? 0xffffff : COLORS[f],
+            map: this._isColorBlind ? this._colorBlindStickerTex[f] : this._stickerTex,
             transparent: true,
             alphaTest: 0.35,
             roughness: 0.38,
@@ -224,7 +468,7 @@
                 const n = NORMALS[f];
                 if (home.dot(n) !== 1) continue;
 
-                const mesh = new THREE.Mesh(stickerGeo, stickerMats[f]);
+                const mesh = new THREE.Mesh(stickerGeo, this.stickerMats[f]);
                 mesh.position.copy(n).multiplyScalar(0.501);
                 mesh.lookAt(mesh.position.clone().add(n));
                 solid.add(mesh);
@@ -279,6 +523,7 @@
 
         const subs = this.views.map((v) => v.beginMove(face, turns));
 
+        let isFinished = false;
         return {
           face,
           turns,
@@ -287,6 +532,8 @@
             for (const s of subs) s.setProgress(t);
           },
           finish: () => {
+            if (isFinished) return;
+            isFinished = true;
             const q = new THREE.Quaternion().setFromAxisAngle(axis, angle);
             for (const p of members) {
               p.coord.applyQuaternion(q).round();
@@ -329,6 +576,13 @@
         this.camera = new THREE.OrthographicCamera(-1, 1, 1, -1, 0.1, 20);
         this.camera.position.set(0, 0, 5);
 
+        this._defaultBeadTex = createBeadTexture();
+        this._colorBlindBeadTex = {};
+        for (const f of FACES) {
+          this._colorBlindBeadTex[f] = createColorBlindBeadTexture(f);
+        }
+        this._isColorBlind = false;
+
         this.rings = []; // { axis, slice, line, glowLine, mat, glowMat, center, radius }
         this.dots = new Map(); // sticker -> Mesh
         this.activeMove = null;
@@ -338,10 +592,26 @@
         this.resize(window.innerWidth, window.innerHeight);
       }
 
+      setColorBlindMode(enabled) {
+        this._isColorBlind = !!enabled;
+        for (const f of FACES) {
+          if (this.beadMats[f]) {
+            if (this._isColorBlind) {
+              this.beadMats[f].map = this._colorBlindBeadTex[f];
+              this.beadMats[f].color.setHex(0xffffff);
+            } else {
+              this.beadMats[f].map = this._defaultBeadTex;
+              this.beadMats[f].color.setHex(COLORS[f]);
+            }
+            this.beadMats[f].needsUpdate = true;
+          }
+        }
+      }
+
       _buildRings() {
         const segments = 160;
         const axes = ['Y', 'Z', 'X'];
-        const slices = [-1, 0, 1];
+        const slices = [-1, 0, 1]; // 3 concentric rings per system for 3x3
 
         for (const axis of axes) {
           const center = RING_CENTERS[axis];
@@ -381,22 +651,18 @@
 
       _buildDots() {
         const geo = new THREE.PlaneGeometry(RING_CONFIG.beadSize, RING_CONFIG.beadSize);
-        const tex = createBeadTexture();
-        const mats = new Map();
+        this.beadMats = {};
+        for (const f of FACES) {
+          this.beadMats[f] = new THREE.MeshBasicMaterial({
+            color: this._isColorBlind ? 0xffffff : COLORS[f],
+            map: this._isColorBlind ? this._colorBlindBeadTex[f] : this._defaultBeadTex,
+            transparent: true,
+            depthWrite: false,
+          });
+        }
 
         for (const sticker of this.cube.stickers) {
-          if (!mats.has(sticker.color)) {
-            mats.set(
-              sticker.color,
-              new THREE.MeshBasicMaterial({
-                color: sticker.color,
-                map: tex,
-                transparent: true,
-                depthWrite: false,
-              })
-            );
-          }
-          const mesh = new THREE.Mesh(geo, mats.get(sticker.color));
+          const mesh = new THREE.Mesh(geo, this.beadMats[sticker.home]);
           mesh.position.z = 0.05;
           this.scene.add(mesh);
           this.dots.set(sticker, mesh);
@@ -436,7 +702,6 @@
       /**
        * Start 2D animation for turn.
        * Lights up the active ring in orange.
-       * All balls on the same circle ALWAYS move in the exact same direction.
        */
       beginMove(face, turns) {
         const axisMap = {
@@ -466,9 +731,7 @@
         const faceCenter = (face in NORMALS) ? calculateRestPosition(face, new THREE.Vector3(0, 0, 0)) : null;
 
         // Base sign for clockwise 3D turn:
-        // U, R, F, S outer rings rotate counter-clockwise (positive dTheta)
-        // D, L, B, M, E inner rings rotate clockwise (negative dTheta)
-        const baseSign = (face === 'U' || face === 'R' || face === 'F' || face === 'S') ? 1 : -1;
+        const baseSign = (face === 'U' || face === 'R' || face === 'F' || face === 'S') ? -1 : 1;
         const moveDir = baseSign * turns;
 
         const animatedItems = [];
@@ -511,7 +774,8 @@
               const theta1 = Math.atan2(vEnd.y, vEnd.x);
 
               let dTheta = theta1 - theta0;
-              if (turns > 0) {
+              const faceDir = -turns;
+              if (faceDir > 0) {
                 while (dTheta <= 0) dTheta += Math.PI * 2;
                 while (dTheta > Math.PI * 2) dTheta -= Math.PI * 2;
               } else {
@@ -532,7 +796,6 @@
             }
           } else {
             // Bead on the side band: sweeps along the active circle track!
-            // All balls on this ring MUST have the exact same directional sign
             const vStart = new THREE.Vector2().subVectors(startPos, ringCenter);
             const vEnd = new THREE.Vector2().subVectors(endPos, ringCenter);
             const theta0 = Math.atan2(vStart.y, vStart.x);
@@ -560,6 +823,7 @@
           }
         }
 
+        let isFinished = false;
         return {
           setProgress: (t) => {
             for (const item of animatedItems) {
@@ -574,6 +838,8 @@
             }
           },
           finish: () => {
+            if (isFinished) return;
+            isFinished = true;
             this.setRingHighlight(axis, slice, false);
             this.sync();
           },
@@ -582,6 +848,8 @@
     }
 
     // ------------------------------------------------------------- Move Engine
+    const MAX_USER_QUEUE = 64;
+
     class MoveEngine {
       constructor(cube) {
         this.cube = cube;
@@ -592,6 +860,7 @@
         this.history = [];
         this.onMove = null;
         this.onHistoryChange = null;
+        this.onQueueFull = null;
         this.isScrambling = false;
       }
 
@@ -600,8 +869,22 @@
       }
 
       push(move, source = 'user') {
-        if (!move) return;
+        if (!move) return false;
+        if (source === 'user' && this.queue.length >= MAX_USER_QUEUE) {
+          if (this.onQueueFull) this.onQueueFull(this.queue.length);
+          return false;
+        }
         this.queue.push({ ...move, source });
+        return true;
+      }
+
+      _recordFinished(move) {
+        if (move.source === 'user' || move.source === 'scramble') {
+          this.history.push({ face: move.face, turns: move.turns });
+        } else if (move.source === 'rollback' && Number.isInteger(move.retires)) {
+          this.history.length = Math.max(0, this.history.length - move.retires);
+        }
+        if (this.onHistoryChange) this.onHistoryChange();
       }
 
       pushSequence(tokens, source = 'user') {
@@ -612,127 +895,111 @@
       }
 
       parseMove(token) {
+        token = token.trim();
+        if (!token) return null;
         const face = token[0].toUpperCase();
         if (!FACES.includes(face) && !['M', 'E', 'S'].includes(face)) return null;
-        const suffix = token.slice(1);
-        const turns = suffix === "'" ? -1 : suffix === '2' ? 2 : 1;
+        let turns = 1;
+        if (token.includes("'")) turns = -1;
+        else if (token.includes('2')) turns = 2;
         return { face, turns };
       }
 
       formatMove(move) {
-        return move.face + (move.turns === -1 ? "'" : move.turns === 2 ? '2' : '');
+        if (move.turns === 1) return move.face;
+        if (move.turns === -1) return move.face + "'";
+        if (move.turns === 2 || move.turns === -2) return move.face + '2';
+        return move.face;
       }
 
       invert(move) {
-        return { face: move.face, turns: move.turns === 2 ? 2 : -move.turns };
+        return { face: move.face, turns: -move.turns };
       }
 
-      scramble(seqOrLength = 20) {
-        this.clear();
+      flushPending() {
+        while (this.queue.length > 0) {
+          const next = this.queue.shift();
+          this.cube.applyMove(next.face, next.turns);
+          this._recordFinished(next);
+        }
+        if (this.active) {
+          this.active.handle.finish();
+          this._recordFinished(this.active.move);
+          this.active = null;
+        }
+        this.isScrambling = false;
+      }
+
+      undo() {
+        this.flushPending();
+        if (this.history.length === 0) return;
+        const last = this.history[this.history.length - 1];
+        const inv = this.invert(last);
+        this.push({ ...inv, retires: 1 }, 'rollback');
+      }
+
+      rollbackTo(targetLength) {
+        this.flushPending();
+        const curLen = this.history.length;
+        if (targetLength >= curLen || targetLength < 0) return;
+
+        const countToUndo = curLen - targetLength;
+        const movesToUndo = this.history.slice(targetLength).reverse();
+
+        for (let i = 0; i < movesToUndo.length; i++) {
+          const inv = this.invert(movesToUndo[i]);
+          this.push({ ...inv, retires: 1 }, 'rollback');
+        }
+      }
+
+      scramble(seq) {
+        this.flushPending();
         this.isScrambling = true;
-        if (typeof seqOrLength === 'string') {
-          const tokens = seqOrLength.trim().split(/\s+/);
-          for (const t of tokens) {
-            const m = this.parseMove(t);
-            if (m) this.push(m, 'scramble');
-          }
-          return tokens;
+        const tokens = typeof seq === 'string' ? seq.trim().split(/\s+/) : [];
+        if (tokens.length > 0) {
+          this.pushSequence(tokens, 'scramble');
+          return;
         }
-        const length = typeof seqOrLength === 'number' ? seqOrLength : 20;
-        const out = [];
-        let prev = null;
-        while (out.length < length) {
-          const face = FACES[Math.floor(Math.random() * FACES.length)];
-          if (face === prev) continue;
+        const faces = ['U', 'D', 'L', 'R', 'F', 'B'];
+        let lastFace = '';
+        for (let i = 0; i < 20; i++) {
+          let f = faces[Math.floor(Math.random() * faces.length)];
+          while (f === lastFace) f = faces[Math.floor(Math.random() * faces.length)];
+          lastFace = f;
           const turns = [1, -1, 2][Math.floor(Math.random() * 3)];
-          out.push({ face, turns });
-          prev = face;
+          this.push({ face: f, turns }, 'scramble');
         }
-        for (const m of out) this.push(m, 'scramble');
-        return out;
       }
 
       fastFinishScramble() {
         if (!this.isScrambling) return;
-        if (this.active && this.active.move.source === 'scramble') {
-          this.active.handle.setProgress(1);
-          this.active.handle.finish();
-          this.history.push({ face: this.active.move.face, turns: this.active.move.turns });
-          this.active = null;
-        }
-        const remainingQueue = [];
-        for (const m of this.queue) {
-          if (m.source === 'scramble') {
-            this.cube.applyMove(m.face, m.turns);
-            this.history.push({ face: m.face, turns: m.turns });
-          } else {
-            remainingQueue.push(m);
-          }
-        }
-        this.queue = remainingQueue;
-        this.isScrambling = false;
-      }
-
-      rollbackTo(targetCount) {
-        if (this.isScrambling) this.fastFinishScramble();
-        if (this.active) {
-          this.active.handle.setProgress(1);
-          this.active.handle.finish();
-          if (this.active.move.source === 'user' || this.active.move.source === 'scramble') {
-            this.history.push({ face: this.active.move.face, turns: this.active.move.turns });
-          }
-          this.active = null;
-        }
-        this.queue.length = 0;
-
-        const currentLen = this.history.length;
-        if (targetCount < 0 || targetCount > currentLen) return;
-        if (targetCount === currentLen) return; // already at this step
-
-        const movesToUndo = [];
-        for (let i = currentLen - 1; i >= targetCount; i--) {
-          movesToUndo.push(this.invert(this.history[i]));
-        }
-
-        this.history = this.history.slice(0, targetCount);
-
-        for (const m of movesToUndo) {
-          this.push(m, 'rollback');
-        }
-
-        if (this.onHistoryChange) this.onHistoryChange();
-      }
-
-      undo() {
-        if (this.isScrambling) this.fastFinishScramble();
-        if (!this.history.length) return;
-        this.rollbackTo(this.history.length - 1);
+        this.flushPending();
       }
 
       solve() {
-        if (this.isScrambling) this.fastFinishScramble();
-        if (this.active) {
-          this.active.handle.setProgress(1);
-          this.active.handle.finish();
-          this.history.push({ face: this.active.move.face, turns: this.active.move.turns });
-          this.active = null;
+        this.flushPending();
+        if (this.history.length === 0) return;
+
+        const rawInverted = this.history.slice().reverse().map((m) => this.invert(m));
+        const simplified = simplifyMoveList(rawInverted);
+
+        const totalMoves = this.history.length;
+        for (let i = 0; i < simplified.length; i++) {
+          const move = simplified[i];
+          const retires = (i === 0) ? totalMoves : 0;
+          this.push({ ...move, retires }, 'rollback');
         }
-        this.queue.length = 0;
-        const moves = this.history.slice().reverse().map((m) => this.invert(m));
-        this.history.length = 0;
-        for (const m of moves) this.push(m, 'replay');
-        if (this.onHistoryChange) this.onHistoryChange();
       }
 
       clear() {
         this.queue.length = 0;
         this.isScrambling = false;
         if (this.active) {
-          this.active.handle.setProgress(1);
           this.active.handle.finish();
           this.active = null;
         }
         this.history.length = 0;
+        this.cube.reset();
         if (this.onHistoryChange) this.onHistoryChange();
       }
 
@@ -749,27 +1016,21 @@
 
         const { move, handle } = this.active;
         const baseDuration = (move.source === 'scramble' || move.source === 'rollback') ? 0.12 : 0.35;
-        const duration = (baseDuration * (move.turns === 2 ? 1.6 : 1)) / this.speed;
+        const backlogFactor = Math.min(3.5, 1 + this.queue.length * 0.25);
+        const duration = Math.max(0.04, ((baseDuration * (move.turns === 2 ? 1.6 : 1)) / Math.max(0.1, this.speed)) / backlogFactor);
         this.elapsed += dt;
         const t = Math.min(1, this.elapsed / duration);
-        // Smooth ease-in-out curve
         const ease = t < 0.5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2;
         handle.setProgress(ease);
 
         if (t >= 1) {
-          handle.finish();
-          if (move.source === 'user' || move.source === 'scramble') {
-            this.history.push({ face: move.face, turns: move.turns });
-            if (this.onHistoryChange) this.onHistoryChange();
-          }
           this.active = null;
+          handle.finish();
+          this._recordFinished(move);
           if (this.queue.length === 0 && this.isScrambling) {
             this.isScrambling = false;
           }
           if (this.onMove) this.onMove(move);
-          if (this.queue.length === 0 && (move.source === 'rollback' || move.source === 'replay')) {
-            if (this.onHistoryChange) this.onHistoryChange();
-          }
         }
       }
     }
@@ -796,7 +1057,7 @@
     controls.dampingFactor = 0.06;
     controls.minDistance = 4.5;
     controls.maxDistance = 20;
-    controls.autoRotateSpeed = 0.8;
+    controls.autoRotateSpeed = 1.6;
 
     // Lighting for 3D cube
     scene3D.add(new THREE.HemisphereLight(0xdff3ec, 0x182220, 0.9));
@@ -819,31 +1080,6 @@
 
     const engine = new MoveEngine(cube);
 
-    // View switcher state ('both', 'cube', 'flat')
-    let currentView = 'both';
-
-    // ------------------------------------------------------------- UI & Event Wiring
-    const movesBox = document.getElementById('moves');
-    const ticker = document.getElementById('lastMove');
-    const speedInput = document.getElementById('speed');
-    const speedVal = document.getElementById('speedVal');
-    const spinCheckbox = document.getElementById('spin');
-
-    // Populate move buttons:
-    // 1. Outer face moves (4 columns: U, U', D, D' / F, F', B, B' / R, R', L, L')
-    const moveButtons = [
-      ['U', ''], ['U', "'"], ['D', ''], ['D', "'"],
-      ['F', ''], ['F', "'"], ['B', ''], ['B', "'"],
-      ['R', ''], ['R', "'"], ['L', ''], ['L', "'"],
-    ];
-
-    // 2. Middle slice moves (6 buttons: M, M', S, S', E, E')
-    const sliceButtons = [
-      ['M', ''], ['M', "'"],
-      ['S', ''], ['S', "'"],
-      ['E', ''], ['E', "'"],
-    ];
-
     // ------------------------------------------------------------- State & Interaction Handling
     // ------------------------------------------------------------- Verified Multi-Method Scramble Profiles
     const SCRAMBLE_PROFILES = [
@@ -851,125 +1087,127 @@
         name: "打乱 #1 · 经典竞速态 (Classic Speedcube)",
         scramble: "F R U' R' U R U R2 F' R U R U' R' F U R U' R' F' F' U' F U R U R' U' B2 D2 F' R2 D'",
         layer: [
-          { title: "1. 底面白色十字 (White Cross)", badge: "Step 1", desc: "还原底层 4 颗白色棱块，对齐侧面中心。", alg: "D R2 F D2 B2" },
-          { title: "2. 底层角块归位 (First Layer)", badge: "Step 2", desc: "右手四步法将底层白色角块归位。", alg: "U R U' R'" },
-          { title: "3. 中层棱块归位 (Middle Layer)", badge: "Step 3", desc: "将顶层棱块送入中层右侧槽位。", alg: "U' F' U F" },
-          { title: "4. 顶层黄色十字 (Yellow Cross)", badge: "Step 4", desc: "翻转顶层棱块形成黄色十字。", alg: "F R U R' U' F'" },
-          { title: "5. 顶面黄色翻色 (OLL Sune)", badge: "Step 5", desc: "小鱼公式翻齐顶面黄色。", alg: "R U R' U'" },
-          { title: "6. 顶角位置调整 (PLL Corners)", badge: "Step 6", desc: "经典 T-Perm 交换两角位置。", alg: "R' F R2 U' R'" },
-          { title: "7. 顶棱复原 (PLL Edges)", badge: "Step 7", desc: "最终调换顶棱，完成魔方六面全还原！", alg: "U' R U R' F'" },
+          { title: "1. 底面白色十字 (White Cross)", badge: "Step 1", desc: "还原底层 4 颗白色棱块，对齐侧面中心。" },
+          { title: "2. 底层角块归位 (First Layer)", badge: "Step 2", desc: "右手四步法将底层白色角块归位。" },
+          { title: "3. 中层棱块归位 (Middle Layer)", badge: "Step 3", desc: "将顶层棱块送入中层右侧槽位。" },
+          { title: "4. 顶层黄色十字 (Yellow Cross)", badge: "Step 4", desc: "翻转顶层棱块形成黄色十字。" },
+          { title: "5. 顶面黄色翻色 (OLL Sune)", badge: "Step 5", desc: "小鱼公式翻齐顶面黄色。" },
+          { title: "6. 顶角位置调整 (PLL Corners)", badge: "Step 6", desc: "经典 T-Perm 交换两角位置。" },
+          { title: "7. 顶棱复原 (PLL Edges)", badge: "Step 7", desc: "最终调换顶棱，完成魔方六面全还原！" },
         ],
         cfop: [
-          { title: "C - Cross (底棱归位)", badge: "Step 1", desc: "在底层完成白十字，对齐侧面四中心块。", alg: "D R2 F D2 B2" },
-          { title: "F - F2L (前两层 41 Cases)", badge: "Step 2", desc: "4 组角棱对同时配对入槽，一步完成前两层。", alg: "U R U' R' U' F' U F" },
-          { title: "O - OLL (顶层定向 57 Cases)", badge: "Step 3", desc: "顶面黄色色块全部朝上。", alg: "F R U R' U' F' R U R' U'" },
-          { title: "P - PLL (顶层排列 21 Cases)", badge: "Step 4", desc: "顶层块位置一步排列，彻底复原魔方。", alg: "R' F R2 U' R' U' R U R' F'" },
+          { title: "C - Cross (底棱归位)", badge: "Step 1", desc: "在底层完成白十字，对齐侧面四中心块。" },
+          { title: "F - F2L (前两层 41 Cases)", badge: "Step 2", desc: "4 组角棱对同时配对入槽，一步完成前两层。" },
+          { title: "O - OLL (顶层定向 57 Cases)", badge: "Step 3", desc: "顶面黄色色块全部朝上。" },
+          { title: "P - PLL (顶层排列 21 Cases)", badge: "Step 4", desc: "顶层块位置一步排列，彻底复原魔方。" },
         ],
         roux: [
-          { title: "Step 1: First Block (FB 第一桥)", badge: "Step 1", desc: "在左侧搭建 1x2x3 桥块。", alg: "D R2 F D2" },
-          { title: "Step 2: Second Block (SB 第二桥)", badge: "Step 2", desc: "在右侧搭建 1x2x3 桥块。", alg: "B2 U R U' R'" },
-          { title: "Step 3: CMLL (顶角归位)", badge: "Step 3", desc: "顶角定向与排列，保持中轴自由。", alg: "U' F' U F F R U R' U' F'" },
-          { title: "Step 4: LSE (最后六棱)", badge: "Step 4", desc: "还原中轴与最后六棱，彻底复原魔方。", alg: "R U R' U' R' F R2 U' R' U' R U R' F'" },
+          { title: "Step 1: First Block (FB 第一桥)", badge: "Step 1", desc: "在左侧搭建 1x2x3 桥块。" },
+          { title: "Step 2: Second Block (SB 第二桥)", badge: "Step 2", desc: "在右侧搭建 1x2x3 桥块。" },
+          { title: "Step 3: CMLL (顶角归位)", badge: "Step 3", desc: "顶角定向与排列，保持中轴自由。" },
+          { title: "Step 4: LSE (最后六棱)", badge: "Step 4", desc: "还原中轴与最后六棱，彻底复原魔方。" },
         ],
         zz: [
-          { title: "Step 1: EOLine / EOBlock", badge: "Step 1", desc: "全魔方棱块定向 + 底线棱归位。", alg: "D R2 F D2 B2" },
-          { title: "Step 2: ZZ-F2L (左右块装配)", badge: "Step 2", desc: "仅用 <R, U, L> 快速装配左右两侧块。", alg: "U R U' R' U' F' U F" },
-          { title: "Step 3: LL (顶层收尾)", badge: "Step 3", desc: "天然十字存在下的 COLL 与 EPLL 快速收尾。", alg: "F R U R' U' F' R U R' U' R' F R2 U' R' U' R U R' F'" },
+          { title: "Step 1: EOLine / EOBlock", badge: "Step 1", desc: "全魔方棱块定向 + 底线棱归位。" },
+          { title: "Step 2: ZZ-F2L (左右块装配)", badge: "Step 2", desc: "仅用 <R, U, L> 快速装配左右两侧块。" },
+          { title: "Step 3: LL (顶层收尾)", badge: "Step 3", desc: "天然十字存在下的 COLL 与 EPLL 快速收尾。" },
         ],
       },
       {
         name: "打乱 #2 · 小鱼与U-Perm组合 (Sune & U-Perm)",
         scramble: "R2 U R U R' U' R' U' R' U' R2 B2 R F R' B2 R' F' R R U2 R' U' R' U' R F R U' R' U' F' U' F U R U R' U' R U2 R' U' L2 U' F2 D' R2",
         layer: [
-          { title: "1. 底面白色十字 (White Cross)", badge: "Step 1", desc: "底层 4 白棱入位，形成对齐的白色十字。", alg: "R2 D F2 U L2" },
-          { title: "2. 底层角块归位 (First Layer)", badge: "Step 2", desc: "右手公式快速入角到对应白底槽位。", alg: "R U2 R' U" },
-          { title: "3. 中层棱块归位 (Middle Layer)", badge: "Step 3", desc: "中层棱块无黄棱精确入槽。", alg: "R U' R' U' F' U F" },
-          { title: "4. 顶层黄色十字 (Yellow Cross)", badge: "Step 4", desc: "小拐弯公式一举翻出黄色十字。", alg: "F U R U' R' F'" },
-          { title: "5. 顶面黄色翻色 (OLL Sune)", badge: "Step 5", desc: "经典小鱼公式顶面黄色全朝上。", alg: "R U R' U R U2 R'" },
-          { title: "6. 顶角位置调整 (PLL Corners)", badge: "Step 6", desc: "调整顶角使同色角块对齐。", alg: "R' F R' B2 R F' R' B2" },
-          { title: "7. 顶棱复原 (PLL Edges)", badge: "Step 7", desc: "U-Perm 三棱顺时针换位，彻底全还原！", alg: "R2 U' R U R U R U' R' U' R2" },
+          { title: "1. 底面白色十字 (White Cross)", badge: "Step 1", desc: "底层 4 白棱入位，形成对齐的白色十字。" },
+          { title: "2. 底层角块归位 (First Layer)", badge: "Step 2", desc: "右手公式快速入角到对应白底槽位。" },
+          { title: "3. 中层棱块归位 (Middle Layer)", badge: "Step 3", desc: "中层棱块无黄棱精确入槽。" },
+          { title: "4. 顶层黄色十字 (Yellow Cross)", badge: "Step 4", desc: "小拐弯公式一举翻出黄色十字。" },
+          { title: "5. 顶面黄色翻色 (OLL Sune)", badge: "Step 5", desc: "经典小鱼公式顶面黄色全朝上。" },
+          { title: "6. 顶角位置调整 (PLL Corners)", badge: "Step 6", desc: "调整顶角使同色角块对齐。" },
+          { title: "7. 顶棱复原 (PLL Edges)", badge: "Step 7", desc: "U-Perm 三棱顺时针换位，彻底全还原！" },
         ],
         cfop: [
-          { title: "C - Cross (底棱归位)", badge: "Step 1", desc: "在底层完成白十字，对齐侧面四中心块。", alg: "R2 D F2 U L2" },
-          { title: "F - F2L (前两层 41 Cases)", badge: "Step 2", desc: "4 组角棱对同时配对入槽，一步完成前两层。", alg: "R U2 R' U R U' R' U' F' U F" },
-          { title: "O - OLL (顶层定向 57 Cases)", badge: "Step 3", desc: "顶面黄色色块全部朝上。", alg: "F U R U' R' F' R U R' U R U2 R'" },
-          { title: "P - PLL (顶层排列 21 Cases)", badge: "Step 4", desc: "顶层块位置一步排列，彻底复原魔方。", alg: "R' F R' B2 R F' R' B2 R2 U' R U R U R U' R' U' R2" },
+          { title: "C - Cross (底棱归位)", badge: "Step 1", desc: "在底层完成白十字，对齐侧面四中心块。" },
+          { title: "F - F2L (前两层 41 Cases)", badge: "Step 2", desc: "4 组角棱对同时配对入槽，一步完成前两层。" },
+          { title: "O - OLL (顶层定向 57 Cases)", badge: "Step 3", desc: "顶面黄色色块全部朝上。" },
+          { title: "P - PLL (顶层排列 21 Cases)", badge: "Step 4", desc: "顶层块位置一步排列，彻底复原魔方。" },
         ],
         roux: [
-          { title: "Step 1: First Block (FB 第一桥)", badge: "Step 1", desc: "在左侧搭建 1x2x3 桥块。", alg: "R2 D F2" },
-          { title: "Step 2: Second Block (SB 第二桥)", badge: "Step 2", desc: "在右侧搭建 1x2x3 桥块。", alg: "U L2 R U2 R' U" },
-          { title: "Step 3: CMLL (顶角归位)", badge: "Step 3", desc: "顶角定向与排列，保持中轴自由。", alg: "R U' R' U' F' U F F U R U' R' F'" },
-          { title: "Step 4: LSE (最后六棱)", badge: "Step 4", desc: "还原中轴与最后六棱，彻底复原魔方。", alg: "R U R' U R U2 R' R' F R' B2 R F' R' B2 R2 U' R U R U R U' R' U' R2" },
+          { title: "Step 1: First Block (FB 第一桥)", badge: "Step 1", desc: "在左侧搭建 1x2x3 桥块。" },
+          { title: "Step 2: Second Block (SB 第二桥)", badge: "Step 2", desc: "在右侧搭建 1x2x3 桥块。" },
+          { title: "Step 3: CMLL (顶角归位)", badge: "Step 3", desc: "顶角定向与排列，保持中轴自由。" },
+          { title: "Step 4: LSE (最后六棱)", badge: "Step 4", desc: "还原中轴与最后六棱，彻底复原魔方。" },
         ],
         zz: [
-          { title: "Step 1: EOLine / EOBlock", badge: "Step 1", desc: "全魔方棱块定向 + 底线棱归位。", alg: "R2 D F2 U L2" },
-          { title: "Step 2: ZZ-F2L (左右块装配)", badge: "Step 2", desc: "仅用 <R, U, L> 快速装配左右两侧块。", alg: "R U2 R' U R U' R' U' F' U F" },
-          { title: "Step 3: LL (顶层收尾)", badge: "Step 3", desc: "天然十字存在下的 COLL 与 EPLL 快速收尾。", alg: "F U R U' R' F' R U R' U R U2 R' R' F R' B2 R F' R' B2 R2 U' R U R U R U' R' U' R2" },
+          { title: "Step 1: EOLine / EOBlock", badge: "Step 1", desc: "全魔方棱块定向 + 底线棱归位。" },
+          { title: "Step 2: ZZ-F2L (左右块装配)", badge: "Step 2", desc: "仅用 <R, U, L> 快速装配左右两侧块。" },
+          { title: "Step 3: LL (顶层收尾)", badge: "Step 3", desc: "天然十字存在下的 COLL 与 EPLL 快速收尾。" },
         ],
       },
       {
         name: "打乱 #3 · 桥式与ZZ优化态 (Roux & ZZ Specialized)",
         scramble: "R U R2 F' R' U R U' R' F' R U' R' L' U2 L U L' U L F' U' R' U' F' U' F U' L' U L U' F U' L' U' L U' L' U L R2 F' D B2 L2",
         layer: [
-          { title: "1. 底面白色十字 (White Cross)", badge: "Step 1", desc: "直接归位白十字四棱块。", alg: "L2 B2 D' F R2" },
-          { title: "2. 底层角块归位 (First Layer)", badge: "Step 2", desc: "将底层角块归位，形成一层纯色。", alg: "U' L' U L" },
-          { title: "3. 中层棱块归位 (Middle Layer)", badge: "Step 3", desc: "左侧棱块入槽复原中层。", alg: "U' L' U L U F U' F'" },
-          { title: "4. 顶层黄色十字 (Yellow Cross)", badge: "Step 4", desc: "顶面一字翻转成黄色十字。", alg: "F R U R' U' F'" },
-          { title: "5. 顶面黄色翻色 (OLL Sune)", badge: "Step 5", desc: "逆小鱼公式翻齐顶面黄色。", alg: "L' U' L U' L' U2 L" },
-          { title: "6. 顶角位置调整 (PLL Corners)", badge: "Step 6", desc: "Jb-Perm 排列顶角位置。", alg: "R U R' F' R U R' U' R' F" },
-          { title: "7. 顶棱复原 (PLL Edges)", badge: "Step 7", desc: "最终调正顶棱，全盘复原！", alg: "R2 U' R'" },
+          { title: "1. 底面白色十字 (White Cross)", badge: "Step 1", desc: "直接归位白十字四棱块。" },
+          { title: "2. 底层角块归位 (First Layer)", badge: "Step 2", desc: "将底层角块归位，形成一层纯色。" },
+          { title: "3. 中层棱块归位 (Middle Layer)", badge: "Step 3", desc: "左侧棱块入槽复原中层。" },
+          { title: "4. 顶层黄色十字 (Yellow Cross)", badge: "Step 4", desc: "顶面一字翻转成黄色十字。" },
+          { title: "5. 顶面黄色翻色 (OLL Sune)", badge: "Step 5", desc: "逆小鱼公式翻齐顶面黄色。" },
+          { title: "6. 顶角位置调整 (PLL Corners)", badge: "Step 6", desc: "Jb-Perm 排列顶角位置。" },
+          { title: "7. 顶棱复原 (PLL Edges)", badge: "Step 7", desc: "最终调正顶棱，全盘复原！" },
         ],
         cfop: [
-          { title: "C - Cross (底棱归位)", badge: "Step 1", desc: "在底层完成白十字，对齐侧面四中心块。", alg: "L2 B2 D' F R2" },
-          { title: "F - F2L (前两层 41 Cases)", badge: "Step 2", desc: "4 组角棱对同时配对入槽，一步完成前两层。", alg: "U' L' U L U' L' U L U F U' F'" },
-          { title: "O - OLL (顶层定向 57 Cases)", badge: "Step 3", desc: "顶面黄色色块全部朝上。", alg: "F R U R' U' F' L' U' L U' L' U2 L" },
-          { title: "P - PLL (顶层排列 21 Cases)", badge: "Step 4", desc: "顶层块位置一步排列，彻底复原魔方。", alg: "R U R' F' R U R' U' R' F R2 U' R'" },
+          { title: "C - Cross (底棱归位)", badge: "Step 1", desc: "在底层完成白十字，对齐侧面四中心块。" },
+          { title: "F - F2L (前两层 41 Cases)", badge: "Step 2", desc: "4 组角棱对同时配对入槽，一步完成前两层。" },
+          { title: "O - OLL (顶层定向 57 Cases)", badge: "Step 3", desc: "顶面黄色色块全部朝上。" },
+          { title: "P - PLL (顶层排列 21 Cases)", badge: "Step 4", desc: "顶层块位置一步排列，彻底复原魔方。" },
         ],
         roux: [
-          { title: "Step 1: First Block (FB 第一桥)", badge: "Step 1", desc: "在左侧搭建 1x2x3 桥块。", alg: "L2 B2 D'" },
-          { title: "Step 2: Second Block (SB 第二桥)", badge: "Step 2", desc: "在右侧搭建 1x2x3 桥块。", alg: "F R2 U' L' U L" },
-          { title: "Step 3: CMLL (顶角归位)", badge: "Step 3", desc: "顶角定向与排列，保持中轴自由。", alg: "U' L' U L U F U' F' F R U R' U' F'" },
-          { title: "Step 4: LSE (最后六棱)", badge: "Step 4", desc: "还原中轴与最后六棱，彻底复原魔方。", alg: "L' U' L U' L' U2 L R U R' F' R U R' U' R' F R2 U' R'" },
+          { title: "Step 1: First Block (FB 第一桥)", badge: "Step 1", desc: "在左侧搭建 1x2x3 桥块。" },
+          { title: "Step 2: Second Block (SB 第二桥)", badge: "Step 2", desc: "在右侧搭建 1x2x3 桥块。" },
+          { title: "Step 3: CMLL (顶角归位)", badge: "Step 3", desc: "顶角定向与排列，保持中轴自由。" },
+          { title: "Step 4: LSE (最后六棱)", badge: "Step 4", desc: "还原中轴与最后六棱，彻底复原魔方。" },
         ],
         zz: [
-          { title: "Step 1: EOLine / EOBlock", badge: "Step 1", desc: "全魔方棱块定向 + 底线棱归位。", alg: "L2 B2 D' F R2" },
-          { title: "Step 2: ZZ-F2L (左右块装配)", badge: "Step 2", desc: "仅用 <R, U, L> 快速装配左右两侧块。", alg: "U' L' U L U' L' U L U F U' F'" },
-          { title: "Step 3: LL (顶层收尾)", badge: "Step 3", desc: "天然十字存在下的 COLL 与 EPLL 快速收尾。", alg: "F R U R' U' F' L' U' L U' L' U2 L R U R' F' R U R' U' R' F R2 U' R'" },
+          { title: "Step 1: EOLine / EOBlock", badge: "Step 1", desc: "全魔方棱块定向 + 底线棱归位。" },
+          { title: "Step 2: ZZ-F2L (左右块装配)", badge: "Step 2", desc: "仅用 <R, U, L> 快速装配左右两侧块。" },
+          { title: "Step 3: LL (顶层收尾)", badge: "Step 3", desc: "天然十字存在下的 COLL 与 EPLL 快速收尾。" },
         ],
       },
       {
         name: "打乱 #4 · 前两层配对态 (F2L Mastery)",
         scramble: "F R U' R' U' R' U' R2 F' R U R U' R' U2 R' U' R U' R' F' U' R' U' F' U F U' R' U R F' R' F R B2 D' L2 F R' D2",
         layer: [
-          { title: "1. 底面白色十字 (White Cross)", badge: "Step 1", desc: "还原底层白十字，侧面颜色对准中心。", alg: "D2 R F' L2 D B2" },
-          { title: "2. 底层角块归位 (First Layer)", badge: "Step 2", desc: "倒槽插入底层白色角块。", alg: "R' F R F'" },
-          { title: "3. 中层棱块归位 (Middle Layer)", badge: "Step 3", desc: "顶层棱块直接送入对应槽位。", alg: "U R U' R' U' F' U F" },
-          { title: "4. 顶层黄色十字 (Yellow Cross)", badge: "Step 4", desc: "六步法翻转出黄色十字。", alg: "F R U R' U' F'" },
-          { title: "5. 顶面黄色翻色 (OLL Sune)", badge: "Step 5", desc: "小鱼公式顶面翻色。", alg: "R U R' U R U2 R'" },
-          { title: "6. 顶角位置调整 (PLL Corners)", badge: "Step 6", desc: "T-Perm 交换顶角。", alg: "R U R' U' R' F R2 U' R'" },
-          { title: "7. 顶棱复原 (PLL Edges)", badge: "Step 7", desc: "收尾调正棱块，六面大功告成！", alg: "U' R U R' F'" },
+          { title: "1. 底面白色十字 (White Cross)", badge: "Step 1", desc: "还原底层白十字，侧面颜色对准中心。" },
+          { title: "2. 底层角块归位 (First Layer)", badge: "Step 2", desc: "倒槽插入底层白色角块。" },
+          { title: "3. 中层棱块归位 (Middle Layer)", badge: "Step 3", desc: "顶层棱块直接送入对应槽位。" },
+          { title: "4. 顶层黄色十字 (Yellow Cross)", badge: "Step 4", desc: "六步法翻转出黄色十字。" },
+          { title: "5. 顶面黄色翻色 (OLL Sune)", badge: "Step 5", desc: "小鱼公式顶面翻色。" },
+          { title: "6. 顶角位置调整 (PLL Corners)", badge: "Step 6", desc: "T-Perm 交换顶角。" },
+          { title: "7. 顶棱复原 (PLL Edges)", badge: "Step 7", desc: "收尾调正棱块，六面大功告成！" },
         ],
         cfop: [
-          { title: "C - Cross (底棱归位)", badge: "Step 1", desc: "在底层完成白十字，对齐侧面四中心块。", alg: "D2 R F' L2 D B2" },
-          { title: "F - F2L (前两层 41 Cases)", badge: "Step 2", desc: "4 组角棱对同时配对入槽，一步完成前两层。", alg: "R' F R F' U R U' R' U' F' U F" },
-          { title: "O - OLL (顶层定向 57 Cases)", badge: "Step 3", desc: "顶面黄色色块全部朝上。", alg: "F R U R' U' F' R U R' U R U2 R'" },
-          { title: "P - PLL (顶层排列 21 Cases)", badge: "Step 4", desc: "顶层块位置一步排列，彻底复原魔方。", alg: "R U R' U' R' F R2 U' R' U' R U R' F'" },
+          { title: "C - Cross (底棱归位)", badge: "Step 1", desc: "在底层完成白十字，对齐侧面四中心块。" },
+          { title: "F - F2L (前两层 41 Cases)", badge: "Step 2", desc: "4 组角棱对同时配对入槽，一步完成前两层。" },
+          { title: "O - OLL (顶层定向 57 Cases)", badge: "Step 3", desc: "顶面黄色色块全部朝上。" },
+          { title: "P - PLL (顶层排列 21 Cases)", badge: "Step 4", desc: "顶层块位置一步排列，彻底复原魔方。" },
         ],
         roux: [
-          { title: "Step 1: First Block (FB 第一桥)", badge: "Step 1", desc: "在左侧搭建 1x2x3 桥块。", alg: "D2 R F'" },
-          { title: "Step 2: Second Block (SB 第二桥)", badge: "Step 2", desc: "在右侧搭建 1x2x3 桥块。", alg: "L2 D B2 R' F R F'" },
-          { title: "Step 3: CMLL (顶角归位)", badge: "Step 3", desc: "顶角定向与排列，保持中轴自由。", alg: "U R U' R' U' F' U F F R U R' U' F'" },
-          { title: "Step 4: LSE (最后六棱)", badge: "Step 4", desc: "还原中轴与最后六棱，彻底复原魔方。", alg: "R U R' U R U2 R' R U R' U' R' F R2 U' R' U' R U R' F'" },
+          { title: "Step 1: First Block (FB 第一桥)", badge: "Step 1", desc: "在左侧搭建 1x2x3 桥块。" },
+          { title: "Step 2: Second Block (SB 第二桥)", badge: "Step 2", desc: "在右侧搭建 1x2x3 桥块。" },
+          { title: "Step 3: CMLL (顶角归位)", badge: "Step 3", desc: "顶角定向与排列，保持中轴自由。" },
+          { title: "Step 4: LSE (最后六棱)", badge: "Step 4", desc: "还原中轴与最后六棱，彻底复原魔方。" },
         ],
         zz: [
-          { title: "Step 1: EOLine / EOBlock", badge: "Step 1", desc: "全魔方棱块定向 + 底线棱归位。", alg: "D2 R F' L2 D B2" },
-          { title: "Step 2: ZZ-F2L (左右块装配)", badge: "Step 2", desc: "仅用 <R, U, L> 快速装配左右两侧块。", alg: "R' F R F' U R U' R' U' F' U F" },
-          { title: "Step 3: LL (顶层收尾)", badge: "Step 3", desc: "天然十字存在下的 COLL 与 EPLL 快速收尾。", alg: "F R U R' U' F' R U R' U R U2 R' R U R' U' R' F R2 U' R' U' R U R' F'" },
+          { title: "Step 1: EOLine / EOBlock", badge: "Step 1", desc: "全魔方棱块定向 + 底线棱归位。" },
+          { title: "Step 2: ZZ-F2L (左右块装配)", badge: "Step 2", desc: "仅用 <R, U, L> 快速装配左右两侧块。" },
+          { title: "Step 3: LL (顶层收尾)", badge: "Step 3", desc: "天然十字存在下的 COLL 与 EPLL 快速收尾。" },
         ],
       }
     ];
 
     let currentProfileIndex = -1;
+    let activeProfile = null;
+    let solutionDueAfterScramble = false;
     const statusBox = document.getElementById('methodScrambleStatus');
     const statusText = document.getElementById('scrambleStatusText');
 
@@ -993,11 +1231,19 @@
       container.querySelectorAll('.btn-run').forEach((btn) => {
         btn.addEventListener('click', (e) => {
           e.stopPropagation();
-          onUserInteractedWithMoveOrMethod();
+          if (btn.disabled || btn.classList.contains('running')) return;
           const alg = btn.dataset.alg;
           if (alg) {
             const cleanTokens = alg.replace(/^[^:]+:\s*/, '').trim().split(/\s+/).filter(Boolean);
             if (cleanTokens.length) {
+              btn.classList.add('running');
+              const origText = btn.textContent;
+              btn.textContent = '⏳';
+              setTimeout(() => {
+                btn.textContent = origText;
+                btn.classList.remove('running');
+              }, 400);
+              onUserInteractedWithMoveOrMethod();
               engine.pushSequence(cleanTokens, 'user');
             }
           }
@@ -1065,7 +1311,7 @@
         return [{
           title: "🎉 魔方已在复原状态 (Cube Solved)",
           badge: "Done",
-          desc: "当前魔方六面颜色完全对齐，处于全复原状态，无需任何操作！",
+          desc: "当前三阶魔方六面颜色完全对齐，处于全复原状态，无需任何操作！",
           alg: ""
         }];
       }
@@ -1105,28 +1351,8 @@
     }
 
     function updateSolutionForCurrentCube() {
-      // 1. Finish active move and flush queue
-      if (engine.isScrambling) engine.fastFinishScramble();
-      if (engine.active) {
-        engine.active.handle.setProgress(1);
-        engine.active.handle.finish();
-        if (engine.active.move.source === 'user' || engine.active.move.source === 'scramble' || engine.active.move.source === 'algorithm') {
-          engine.history.push({ face: engine.active.move.face, turns: engine.active.move.turns });
-        }
-        engine.active = null;
-      }
-      while (engine.queue.length > 0) {
-        const m = engine.queue.shift();
-        const handle = engine.cube.beginMove(m.face, m.turns);
-        handle.setProgress(1);
-        handle.finish();
-        if (m.source === 'user' || m.source === 'scramble' || m.source === 'algorithm') {
-          engine.history.push({ face: m.face, turns: m.turns });
-        }
-      }
-      if (engine.onHistoryChange) engine.onHistoryChange();
+      engine.flushPending();
 
-      // 2. Invert history and simplify
       const rawInverted = engine.history.slice().reverse().map((m) => engine.invert(m));
       const simplifiedMoves = simplifyMoveList(rawInverted);
 
@@ -1161,13 +1387,15 @@
       ];
 
       const dynamicProfile = {
-        name: simplifiedMoves.length === 0 
-          ? "当前状态 · 完全复原态 (Solved)" 
-          : `当前魔方实时解法 · 最优求解 ${simplifiedMoves.length} 步`,
-        layer: partitionMovesIntoSteps(simplifiedMoves, layerConfigs),
-        cfop: partitionMovesIntoSteps(simplifiedMoves, cfopConfigs),
-        roux: partitionMovesIntoSteps(simplifiedMoves, rouxConfigs),
-        zz: partitionMovesIntoSteps(simplifiedMoves, zzConfigs),
+        name: simplifiedMoves.length === 0
+          ? "当前状态 · 完全复原态 (Solved)"
+          : (activeProfile
+              ? `${activeProfile.name} · 求解 ${simplifiedMoves.length} 步`
+              : `当前魔方实时解法 · 最优求解 ${simplifiedMoves.length} 步`),
+        layer: partitionMovesIntoSteps(simplifiedMoves, activeProfile?.layer || layerConfigs),
+        cfop: partitionMovesIntoSteps(simplifiedMoves, activeProfile?.cfop || cfopConfigs),
+        roux: partitionMovesIntoSteps(simplifiedMoves, activeProfile?.roux || rouxConfigs),
+        zz: partitionMovesIntoSteps(simplifiedMoves, activeProfile?.zz || zzConfigs),
       };
 
       updateAllMethods(dynamicProfile);
@@ -1191,11 +1419,28 @@
       renderMethodSteps('content-zz', profile.zz);
     }
 
+    let lastSolutionUpdateTime = 0;
+    let solutionUpdateTimer = null;
+    function requestSolutionUpdate() {
+      const wait = 300 - (Date.now() - lastSolutionUpdateTime);
+      if (solutionUpdateTimer) clearTimeout(solutionUpdateTimer);
+      if (wait <= 0) {
+        lastSolutionUpdateTime = Date.now();
+        updateSolutionForCurrentCube();
+        return;
+      }
+      solutionUpdateTimer = setTimeout(() => {
+        solutionUpdateTimer = null;
+        lastSolutionUpdateTime = Date.now();
+        updateSolutionForCurrentCube();
+      }, wait);
+    }
+
     const btnUpdateSolution = document.getElementById('btnUpdateSolution');
     if (btnUpdateSolution) {
       btnUpdateSolution.addEventListener('click', (e) => {
         e.stopPropagation();
-        updateSolutionForCurrentCube();
+        requestSolutionUpdate();
       });
     }
 
@@ -1210,20 +1455,18 @@
       if (!scrambleBtn) return;
       scrambleBtn.disabled = disabled;
       if (disabled) {
-        scrambleBtn.classList.add('disabled');
-        scrambleBtn.setAttribute('title', '已进入解法或操作状态，点击 Solve 或 Reset 后方可重新打乱');
+        scrambleBtn.title = "已进入解题/操作状态，需点击 Reset 或 Solve 复原后重新打乱";
       } else {
-        scrambleBtn.classList.remove('disabled');
-        scrambleBtn.removeAttribute('title');
+        scrambleBtn.title = "";
       }
     }
 
     function onUserInteractedWithMoveOrMethod() {
       if (isScrambled) {
-        if (engine.isScrambling) {
-          engine.fastFinishScramble();
-        }
         setScrambleDisabled(true);
+      }
+      if (engine.isScrambling) {
+        engine.fastFinishScramble();
       }
     }
 
@@ -1232,91 +1475,168 @@
       setScrambleDisabled(false);
     }
 
-    for (const [face, suffix] of moveButtons) {
-      const btn = document.createElement('button');
-      btn.className = 'move';
-      btn.dataset.face = face;
-      btn.textContent = face + suffix;
-      btn.addEventListener('click', () => {
-        onUserInteractedWithMoveOrMethod();
-        engine.push(engine.parseMove(face + suffix), 'user');
-      });
-      movesBox.appendChild(btn);
+    // ------------------------------------------------------------- UI HUD Wiring
+    const movesContainer = document.getElementById('moves');
+    const moveDefs = [
+      { face: 'U', turns: 1, label: 'U' },
+      { face: 'U', turns: -1, label: "U'" },
+      { face: 'D', turns: 1, label: 'D' },
+      { face: 'D', turns: -1, label: "D'" },
+      { face: 'F', turns: 1, label: 'F' },
+      { face: 'F', turns: -1, label: "F'" },
+      { face: 'B', turns: 1, label: 'B' },
+      { face: 'B', turns: -1, label: "B'" },
+      { face: 'R', turns: 1, label: 'R' },
+      { face: 'R', turns: -1, label: "R'" },
+      { face: 'L', turns: 1, label: 'L' },
+      { face: 'L', turns: -1, label: "L'" },
+    ];
+
+    const lastMoveAt = new Map();
+    function triggerUserMove(move, controlId) {
+      if (!move) return;
+      const now = Date.now();
+      const key = controlId || ('move:' + move.face + move.turns);
+      if (now - (lastMoveAt.get(key) || 0) < 60) return;
+      lastMoveAt.set(key, now);
+      onUserInteractedWithMoveOrMethod();
+      engine.push(move, 'user');
     }
 
-    const sliceMovesBox = document.getElementById('sliceMoves');
-    if (sliceMovesBox) {
-      for (const [face, suffix] of sliceButtons) {
+    for (const m of moveDefs) {
+      const btn = document.createElement('button');
+      btn.className = 'move-btn';
+      btn.dataset.face = m.face;
+      btn.dataset.turns = m.turns;
+      btn.textContent = m.label;
+      btn.addEventListener('click', () => {
+        triggerUserMove({ face: m.face, turns: m.turns }, 'hud:' + m.label);
+      });
+      movesContainer.appendChild(btn);
+    }
+
+    // 3x3 Rubik's Cube has middle layers; M/S/E slice buttons are visible and functional
+    const sliceContainer = document.getElementById('sliceMoves');
+    if (sliceContainer) {
+      const sliceDefs = [
+        { face: 'M', turns: 1, label: 'M' },
+        { face: 'M', turns: -1, label: "M'" },
+        { face: 'S', turns: 1, label: 'S' },
+        { face: 'S', turns: -1, label: "S'" },
+        { face: 'E', turns: 1, label: 'E' },
+        { face: 'E', turns: -1, label: "E'" },
+      ];
+      for (const m of sliceDefs) {
         const btn = document.createElement('button');
-        btn.className = 'move';
-        btn.dataset.face = face;
-        btn.textContent = face + suffix;
-        btn.title = `${face}${suffix} · 中间层旋转 (Slice)`;
+        btn.className = 'move-btn';
+        btn.dataset.face = m.face;
+        btn.dataset.turns = m.turns;
+        btn.textContent = m.label;
+        btn.title = `${m.label} · 切片层旋转 (Slice)`;
         btn.addEventListener('click', () => {
-          onUserInteractedWithMoveOrMethod();
-          engine.push(engine.parseMove(face + suffix), 'user');
+          triggerUserMove({ face: m.face, turns: m.turns }, 'hud:' + m.label);
         });
-        sliceMovesBox.appendChild(btn);
+        sliceContainer.appendChild(btn);
       }
+    }
+
+    const lastActionAt = new Map();
+    function actionAllowed(name, ms) {
+      const now = Date.now();
+      if (now - (lastActionAt.get(name) || 0) < ms) return false;
+      lastActionAt.set(name, now);
+      return true;
     }
 
     const actions = {
       scramble: () => {
+        if (!actionAllowed('scramble', 180)) return;
         if (scrambleBtn && scrambleBtn.disabled) return;
         isScrambled = true;
         setScrambleDisabled(false);
 
         currentProfileIndex = (currentProfileIndex + 1) % SCRAMBLE_PROFILES.length;
         const profile = SCRAMBLE_PROFILES[currentProfileIndex];
-        updateAllMethods(profile);
+        activeProfile = profile;
+        solutionDueAfterScramble = true;
+        if (statusText) statusText.textContent = `${profile.name} · 打乱中，解法将在打乱完成后生成…`;
+        if (statusBox) statusBox.classList.add('active');
         engine.scramble(profile.scramble);
       },
       solve: () => {
+        if (!actionAllowed('solve', 180)) return;
+        if (cube.isSolved() && !engine.busy) return;
         resetScrambleState();
         engine.solve();
       },
       undo: () => {
+        if (!actionAllowed('undo', 80)) return;
         onUserInteractedWithMoveOrMethod();
         engine.undo();
       },
       reset: () => {
+        if (!actionAllowed('reset', 150)) return;
+        activeProfile = null;
+        solutionDueAfterScramble = false;
         resetScrambleState();
         engine.clear();
         cube.reset();
-        ticker.textContent = '—';
+        ticker.textContent = 'READY';
         updateSolutionForCurrentCube();
       },
     };
 
     document.querySelectorAll('[data-act]').forEach((btn) => {
-      btn.addEventListener('click', () => actions[btn.dataset.act]());
+      btn.addEventListener('click', () => {
+        const act = btn.dataset.act;
+        if (actions[act]) actions[act]();
+      });
     });
 
+    let viewMode = 'both';
     document.querySelectorAll('[data-view]').forEach((btn) => {
       btn.addEventListener('click', () => {
         document.querySelectorAll('[data-view]').forEach((b) => b.classList.remove('active'));
         btn.classList.add('active');
-        currentView = btn.dataset.view;
-        updateCircleControlsPosition();
+        viewMode = btn.dataset.view;
+        onResize();
         updateCubeControlsWidgetVisibility();
       });
     });
 
-    speedInput.addEventListener('input', () => {
-      engine.speed = parseFloat(speedInput.value);
-      speedVal.textContent = engine.speed.toFixed(2).replace(/0$/, '') + '×';
+    const speedInput = document.getElementById('speed');
+    const speedVal = document.getElementById('speed-val');
+    speedInput.addEventListener('input', (e) => {
+      const val = parseFloat(e.target.value);
+      engine.speed = val;
+      speedVal.textContent = val.toFixed(1) + '×';
     });
 
-    spinCheckbox.addEventListener('change', () => {
-      controls.autoRotate = spinCheckbox.checked;
+    const autoRotateInput = document.getElementById('auto-rotate');
+    autoRotateInput.addEventListener('change', (e) => {
+      controls.autoRotate = e.target.checked;
+      controls.autoRotateSpeed = 1.6;
     });
+
+    const colorBlindToggle = document.getElementById('color-blind-toggle');
+    if (colorBlindToggle) {
+      colorBlindToggle.addEventListener('change', (e) => {
+        const enabled = e.target.checked;
+        cube.setColorBlindMode(enabled);
+        diagram.setColorBlindMode(enabled);
+        document.body.classList.toggle('color-blind-mode', enabled);
+      });
+    }
+
+    const ticker = document.getElementById('ticker');
 
     window.addEventListener('keydown', (e) => {
       if (e.target instanceof HTMLInputElement) return;
+      if (e.repeat) return; // Ignore hold-down repeat spam
       const key = e.key.toUpperCase();
-      if (FACES.includes(key) || ['M', 'E', 'S'].includes(key)) {
-        onUserInteractedWithMoveOrMethod();
-        engine.push(engine.parseMove(key + (e.shiftKey ? "'" : '')), 'user');
+      const validMoves = ['U', 'D', 'F', 'B', 'R', 'L', 'M', 'E', 'S'];
+      if (validMoves.includes(key)) {
+        triggerUserMove(engine.parseMove(key + (e.shiftKey ? "'" : '')));
         e.preventDefault();
         return;
       }
@@ -1342,9 +1662,23 @@
       }
     });
 
+    let queueFullTimer = null;
+    engine.onQueueFull = () => {
+      if (!ticker) return;
+      ticker.textContent = 'QUEUE FULL - let the cube catch up';
+      if (queueFullTimer) clearTimeout(queueFullTimer);
+      queueFullTimer = setTimeout(() => { queueFullTimer = null; }, 900);
+    };
+
     engine.onMove = (move) => {
       const solved = cube.isSolved();
-      ticker.textContent = engine.formatMove(move) + (solved ? '   ·   SOLVED' : '');
+      if (solutionDueAfterScramble && !engine.busy) {
+        solutionDueAfterScramble = false;
+        requestSolutionUpdate();
+      }
+      if (!queueFullTimer) {
+        ticker.textContent = engine.formatMove(move) + (solved ? '   ·   SOLVED' : '');
+      }
       if (solved) {
         resetScrambleState();
         if (engine.queue.length === 0) {
@@ -1396,18 +1730,11 @@
     engine.onHistoryChange = renderHistoryUI;
     renderHistoryUI();
 
-    // Any button click in methods panel disables scramble when scrambled
     if (methodsPanel) {
       methodsPanel.addEventListener('click', (e) => {
         if (e.target.closest('button')) {
           onUserInteractedWithMoveOrMethod();
         }
-      });
-    }
-
-    if (btnToggleFloat) {
-      btnToggleFloat.addEventListener('click', () => {
-        onUserInteractedWithMoveOrMethod();
       });
     }
 
@@ -1423,28 +1750,16 @@
     methodTabs.forEach((tab) => {
       tab.addEventListener('click', () => {
         methodTabs.forEach((t) => t.classList.remove('active'));
+        Object.values(tabContents).forEach((c) => c && c.classList.remove('active'));
+
         tab.classList.add('active');
-        const target = tab.dataset.tab;
-        for (const [key, el] of Object.entries(tabContents)) {
-          if (el) el.style.display = key === target ? 'flex' : 'none';
+        const targetTab = tab.dataset.tab;
+        if (tabContents[targetTab]) {
+          tabContents[targetTab].classList.add('active');
         }
       });
     });
 
-    // Run algorithm buttons
-    document.querySelectorAll('.btn-run').forEach((btn) => {
-      btn.addEventListener('click', (e) => {
-        e.stopPropagation();
-        onUserInteractedWithMoveOrMethod();
-        const alg = btn.dataset.alg;
-        if (alg) {
-          const cleanTokens = alg.replace(/^[^:]+:\s*/, '').trim().split(/\s+/);
-          engine.pushSequence(cleanTokens, 'user');
-        }
-      });
-    });
-
-    // Toggle methods panel collapse
     const togglePanel = () => {
       methodsPanel.classList.toggle('collapsed');
       const isCollapsed = methodsPanel.classList.contains('collapsed');
@@ -1457,7 +1772,6 @@
     if (btnToggleMethods) btnToggleMethods.addEventListener('click', togglePanel);
     if (btnToggleFloat) btnToggleFloat.addEventListener('click', togglePanel);
 
-    // Initial solution state for methods panel (cube is solved on load)
     updateSolutionForCurrentCube();
 
     // ------------------------------------------------------------- Circle Rotation Controls Wiring
@@ -1465,7 +1779,7 @@
       const container = document.getElementById('circleControlsOverlay');
       if (!container) return;
 
-      if (currentView === 'cube') {
+      if (viewMode === 'cube') {
         container.style.display = 'none';
         return;
       }
@@ -1473,16 +1787,17 @@
 
       const w = window.innerWidth;
       const h = window.innerHeight;
-      const topH = currentView === 'flat' ? h : (h - Math.round(h * 0.44));
-      const aspect = w / topH;
+      const topH = Math.floor(h * 0.50);
+      const leftW = viewMode === 'both' ? Math.floor(w * 0.50) : w;
+      const aspect = leftW / topH;
       const f = RING_CONFIG.frustum;
       const halfW = aspect >= 1 ? f * aspect : f;
       const halfH = aspect >= 1 ? f : f / aspect;
 
       const outerR = RING_CONFIG.r0 + RING_CONFIG.delta;
       const innerR = RING_CONFIG.r0 - RING_CONFIG.delta;
-      const dAngOut = 65 * Math.PI / 180; // 65 deg offset along outer circle arc (on both sides of the 3 dots)
-      const dAngIn = 48 * Math.PI / 180;  // 48 deg offset along inner circle arc (eliminates radial overlap)
+      const dAngOut = 65 * Math.PI / 180;
+      const dAngIn = 48 * Math.PI / 180;
 
       const systems = [
         {
@@ -1542,7 +1857,7 @@
         if (!el) continue;
         const ndcX = b.wx / halfW;
         const ndcY = b.wy / halfH;
-        const px = (ndcX + 1) * 0.5 * w;
+        const px = (ndcX + 1) * 0.5 * leftW;
         const py = (1 - ndcY) * 0.5 * topH;
         el.style.left = `${px}px`;
         el.style.top = `${py}px`;
@@ -1552,11 +1867,10 @@
     document.querySelectorAll('.circle-rot-btn').forEach((btn) => {
       btn.addEventListener('click', (e) => {
         e.stopPropagation();
-        onUserInteractedWithMoveOrMethod();
         const face = btn.dataset.face;
         const turns = parseInt(btn.dataset.turns, 10);
         if (face && !isNaN(turns)) {
-          engine.push({ face, turns }, 'user');
+          triggerUserMove({ face, turns }, 'circle:' + btn.id);
         }
       });
     });
@@ -1619,9 +1933,9 @@
     cube.root.add(cornerControlsGroup);
     cube.root.add(edgeControlsGroup);
     cube.root.add(faceControlsGroup);
-    cornerControlsGroup.visible = true;
+    cornerControlsGroup.visible = false;
     edgeControlsGroup.visible = false;
-    faceControlsGroup.visible = false;
+    faceControlsGroup.visible = true;
 
     function create3DArrowTexture(dir) {
       const canvas = document.createElement('canvas');
@@ -1629,35 +1943,45 @@
       canvas.height = 128;
       const ctx = canvas.getContext('2d');
 
-      // Translucent dark circular badge
       ctx.beginPath();
       ctx.arc(64, 64, 54, 0, Math.PI * 2);
       ctx.fillStyle = 'rgba(14, 22, 20, 0.92)';
       ctx.fill();
 
-      // Glowing golden border
       ctx.lineWidth = 6;
       ctx.strokeStyle = '#ffd700';
       ctx.shadowColor = '#ffd700';
       ctx.shadowBlur = 10;
       ctx.stroke();
 
-      // Crisp golden arrow glyph
       ctx.shadowBlur = 4;
       ctx.fillStyle = '#ffd700';
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
 
-      const glyphs = { up: '↑', down: '↓', left: '←', right: '→', cw: '↻', ccw: '↺' };
-      if (dir === 'cw' || dir === 'ccw') {
-        ctx.font = 'bold 64px system-ui, -apple-system, sans-serif';
-      } else {
-        ctx.font = 'bold 74px system-ui, -apple-system, sans-serif';
+      if (dir === 'up') {
+        ctx.font = 'bold 72px "Segoe UI Symbol", sans-serif';
+        ctx.fillText('▲', 64, 61);
+      } else if (dir === 'down') {
+        ctx.font = 'bold 72px "Segoe UI Symbol", sans-serif';
+        ctx.fillText('▼', 64, 67);
+      } else if (dir === 'left') {
+        ctx.font = 'bold 72px "Segoe UI Symbol", sans-serif';
+        ctx.fillText('◀', 61, 64);
+      } else if (dir === 'right') {
+        ctx.font = 'bold 72px "Segoe UI Symbol", sans-serif';
+        ctx.fillText('▶', 67, 64);
+      } else if (dir === 'cw') {
+        ctx.font = 'bold 76px "Segoe UI Symbol", sans-serif';
+        ctx.fillText('↻', 64, 64);
+      } else if (dir === 'ccw') {
+        ctx.font = 'bold 76px "Segoe UI Symbol", sans-serif';
+        ctx.fillText('↺', 64, 64);
       }
-      ctx.fillText(glyphs[dir] || '↑', 64, 66);
 
-      const texture = new THREE.CanvasTexture(canvas);
-      return texture;
+      const tex = new THREE.CanvasTexture(canvas);
+      tex.colorSpace = THREE.SRGBColorSpace;
+      return tex;
     }
 
     const arrowTextures = {
@@ -1670,66 +1994,12 @@
     };
 
     const arrowMaterials = {
-      up: new THREE.MeshBasicMaterial({
-        map: arrowTextures.up,
-        transparent: true,
-        depthTest: true,
-        depthWrite: false,
-        polygonOffset: true,
-        polygonOffsetFactor: -4,
-        polygonOffsetUnits: -4,
-        side: THREE.FrontSide
-      }),
-      down: new THREE.MeshBasicMaterial({
-        map: arrowTextures.down,
-        transparent: true,
-        depthTest: true,
-        depthWrite: false,
-        polygonOffset: true,
-        polygonOffsetFactor: -4,
-        polygonOffsetUnits: -4,
-        side: THREE.FrontSide
-      }),
-      left: new THREE.MeshBasicMaterial({
-        map: arrowTextures.left,
-        transparent: true,
-        depthTest: true,
-        depthWrite: false,
-        polygonOffset: true,
-        polygonOffsetFactor: -4,
-        polygonOffsetUnits: -4,
-        side: THREE.FrontSide
-      }),
-      right: new THREE.MeshBasicMaterial({
-        map: arrowTextures.right,
-        transparent: true,
-        depthTest: true,
-        depthWrite: false,
-        polygonOffset: true,
-        polygonOffsetFactor: -4,
-        polygonOffsetUnits: -4,
-        side: THREE.FrontSide
-      }),
-      cw: new THREE.MeshBasicMaterial({
-        map: arrowTextures.cw,
-        transparent: true,
-        depthTest: true,
-        depthWrite: false,
-        polygonOffset: true,
-        polygonOffsetFactor: -4,
-        polygonOffsetUnits: -4,
-        side: THREE.FrontSide
-      }),
-      ccw: new THREE.MeshBasicMaterial({
-        map: arrowTextures.ccw,
-        transparent: true,
-        depthTest: true,
-        depthWrite: false,
-        polygonOffset: true,
-        polygonOffsetFactor: -4,
-        polygonOffsetUnits: -4,
-        side: THREE.FrontSide
-      })
+      up: new THREE.MeshBasicMaterial({ map: arrowTextures.up, transparent: true, depthTest: true, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -4, polygonOffsetUnits: -4, side: THREE.FrontSide }),
+      down: new THREE.MeshBasicMaterial({ map: arrowTextures.down, transparent: true, depthTest: true, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -4, polygonOffsetUnits: -4, side: THREE.FrontSide }),
+      left: new THREE.MeshBasicMaterial({ map: arrowTextures.left, transparent: true, depthTest: true, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -4, polygonOffsetUnits: -4, side: THREE.FrontSide }),
+      right: new THREE.MeshBasicMaterial({ map: arrowTextures.right, transparent: true, depthTest: true, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -4, polygonOffsetUnits: -4, side: THREE.FrontSide }),
+      cw: new THREE.MeshBasicMaterial({ map: arrowTextures.cw, transparent: true, depthTest: true, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -4, polygonOffsetUnits: -4, side: THREE.FrontSide }),
+      ccw: new THREE.MeshBasicMaterial({ map: arrowTextures.ccw, transparent: true, depthTest: true, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -4, polygonOffsetUnits: -4, side: THREE.FrontSide })
     };
 
     const FACE_AXES = {
@@ -1741,7 +2011,6 @@
       D: { n: new THREE.Vector3(0, -1, 0), u: new THREE.Vector3(0, 0, 1),  r: new THREE.Vector3(1, 0, 0) }
     };
 
-    // Mode 2 (Corner Style Controller with Edge Buttons)
     const FACE_CORNER_MOVES = {
       U: {
         tl_up:       { face: 'L', turns: -1 },
@@ -1829,7 +2098,6 @@
       }
     };
 
-    // Mode 3 (Center-Edge Level Moves)
     const FACE_LEVEL_MOVES = {
       U: {
         top_left:     { face: 'B', turns: 1 },
@@ -1906,7 +2174,7 @@
       const faceQuat = new THREE.Quaternion().setFromRotationMatrix(rotMatrix);
       const faceCenter = axes.n.clone().multiplyScalar(faceDist);
 
-      // 1. Build Corner & Edge Piece Controls (Mode 2 - Corner style + 1 button per edge)
+      // 1. Build Corner & Edge Piece Controls
       const cMoves = FACE_CORNER_MOVES[fName];
       const corners = {
         tl: faceCenter.clone().addScaledVector(axes.r, -cornerRadius).addScaledVector(axes.u, cornerRadius),
@@ -1923,7 +2191,6 @@
       };
 
       const cornerDefs = [
-        // 4 corners (2 buttons each)
         { dir: 'up',    pos: corners.tl.clone().addScaledVector(axes.u, cornerArrowOffset),  move: cMoves.tl_up },
         { dir: 'left',  pos: corners.tl.clone().addScaledVector(axes.r, -cornerArrowOffset), move: cMoves.tl_left },
         { dir: 'up',    pos: corners.tr.clone().addScaledVector(axes.u, cornerArrowOffset),  move: cMoves.tr_up },
@@ -1932,7 +2199,6 @@
         { dir: 'down',  pos: corners.bl.clone().addScaledVector(axes.u, -cornerArrowOffset), move: cMoves.bl_down },
         { dir: 'right', pos: corners.br.clone().addScaledVector(axes.r, cornerArrowOffset),  move: cMoves.br_right },
         { dir: 'down',  pos: corners.br.clone().addScaledVector(axes.u, -cornerArrowOffset), move: cMoves.br_down },
-        // 4 edges (1 button each - completes 3x3 directional frame)
         { dir: 'up',    pos: edgeCenters.top.clone().addScaledVector(axes.u, cornerArrowOffset),    move: cMoves.top_edge },
         { dir: 'down',  pos: edgeCenters.bottom.clone().addScaledVector(axes.u, -cornerArrowOffset), move: cMoves.bottom_edge },
         { dir: 'left',  pos: edgeCenters.left.clone().addScaledVector(axes.r, -cornerArrowOffset),   move: cMoves.left_edge },
@@ -1949,7 +2215,7 @@
         cornerArrowMeshes.push(mesh);
       }
 
-      // 2. Build Center-Edge Level Controls (Mode 3 - New level control)
+      // 2. Build Center-Edge Level Controls
       const eMoves = FACE_LEVEL_MOVES[fName];
       const levelEdgeCenters = {
         top:    faceCenter.clone().addScaledVector(axes.u, edgeRadius),
@@ -1979,10 +2245,10 @@
         edgeArrowMeshes.push(mesh);
       }
 
-      // 3. Build Face Center Rotation Controls (Mode 4 / Controller Type 3)
+      // 3. Build Face Center Rotation Controls
       const faceDefs = [
-        { dir: 'ccw', pos: faceCenter.clone().addScaledVector(axes.r, -0.28), move: { face: fName, turns: -1 } },
-        { dir: 'cw',  pos: faceCenter.clone().addScaledVector(axes.r, 0.28),  move: { face: fName, turns: 1 } }
+        { dir: 'ccw', pos: faceCenter.clone().addScaledVector(axes.r, -0.28).addScaledVector(axes.u, 0.28), move: { face: fName, turns: -1 } },
+        { dir: 'cw',  pos: faceCenter.clone().addScaledVector(axes.r, 0.28).addScaledVector(axes.u, -0.28), move: { face: fName, turns: 1 } }
       ];
 
       for (const def of faceDefs) {
@@ -2000,14 +2266,16 @@
       const widget = document.getElementById('cubeControlsWidget');
       if (!widget) return;
       widget.classList.remove('view-cube', 'view-circles');
-      if (currentView === 'cube') {
+      if (viewMode === 'cube') {
         widget.classList.add('view-cube');
-      } else if (currentView === 'flat' || currentView === 'circles') {
+      } else if (viewMode === 'circles') {
         widget.classList.add('view-circles');
       }
     }
 
-    let currentControlMode = 'corner'; // 'none' | 'corner' | 'level' | 'face'
+    const raycaster = new THREE.Raycaster();
+    let hoveredArrow = null;
+    let currentControlMode = 'face';
 
     function setCubeControlMode(mode) {
       currentControlMode = mode;
@@ -2021,13 +2289,11 @@
       }
       renderer.domElement.style.cursor = 'default';
 
-      // Widget buttons (if present)
       document.getElementById('btnCtrlHide')?.classList.toggle('active', mode === 'none');
       document.getElementById('btnCtrlCorner')?.classList.toggle('active', mode === 'corner');
       document.getElementById('btnCtrlLevel')?.classList.toggle('active', mode === 'level');
       document.getElementById('btnCtrlFace')?.classList.toggle('active', mode === 'face');
 
-      // HUD buttons
       document.getElementById('hudBtnCtrlHide')?.classList.toggle('active', mode === 'none');
       document.getElementById('hudBtnCtrlCorner')?.classList.toggle('active', mode === 'corner');
       document.getElementById('hudBtnCtrlLevel')?.classList.toggle('active', mode === 'level');
@@ -2044,28 +2310,32 @@
     document.getElementById('hudBtnCtrlLevel')?.addEventListener('click', () => setCubeControlMode('level'));
     document.getElementById('hudBtnCtrlFace')?.addEventListener('click', () => setCubeControlMode('face'));
 
-    const raycaster = new THREE.Raycaster();
-    let hoveredArrow = null;
+    setCubeControlMode('face');
 
     function get3DMouseNDC(clientX, clientY) {
       const w = window.innerWidth;
       const h = window.innerHeight;
-      let vpTop = 0, vpH = h;
-      if (currentView === 'both') {
-        const lowerH = Math.round(h * 0.44);
-        vpTop = h - lowerH;
-        vpH = lowerH;
-      } else if (currentView === 'flat') {
+      const topH = Math.floor(h * 0.50);
+      let vpLeft = 0, vpTop = 0, vpW = w, vpH = topH;
+      if (viewMode === 'both') {
+        const leftW = Math.floor(w * 0.50);
+        vpLeft = leftW;
+        vpTop = 0;
+        vpW = w - leftW;
+        vpH = topH;
+      } else if (viewMode === 'circles') {
         return null;
       }
-      if (clientY < vpTop || clientY > vpTop + vpH) return null;
-      const ndcX = (clientX / w) * 2 - 1;
+      if (clientX < vpLeft || clientX > vpLeft + vpW || clientY < vpTop || clientY > vpTop + vpH) {
+        return null;
+      }
+      const ndcX = ((clientX - vpLeft) / vpW) * 2 - 1;
       const ndcY = -((clientY - vpTop) / vpH) * 2 + 1;
       return new THREE.Vector2(ndcX, ndcY);
     }
 
     renderer.domElement.addEventListener('pointermove', (e) => {
-      if (currentView === 'flat' || currentControlMode === 'none') {
+      if (viewMode === 'circles' || currentControlMode === 'none') {
         if (hoveredArrow) {
           hoveredArrow.scale.set(1, 1, 1);
           hoveredArrow = null;
@@ -2108,12 +2378,29 @@
     let pointerDownPos = { x: 0, y: 0 };
     renderer.domElement.addEventListener('pointerdown', (e) => {
       pointerDownPos = { x: e.clientX, y: e.clientY };
+      if (viewMode === 'both') {
+        const leftW = Math.floor(window.innerWidth * 0.50);
+        const topH = Math.floor(window.innerHeight * 0.50);
+        if (e.clientX < leftW || e.clientY > topH) {
+          controls.enabled = false;
+          return;
+        }
+      } else if (viewMode === 'circles') {
+        controls.enabled = false;
+        return;
+      }
+      controls.enabled = true;
+    });
+
+    window.addEventListener('pointerup', () => {
+      controls.enabled = true;
     });
 
     renderer.domElement.addEventListener('pointerup', (e) => {
-      if (currentView === 'flat' || currentControlMode === 'none') return;
+      if (e.button !== 0 && e.button !== undefined) return;
+      if (viewMode === 'circles' || currentControlMode === 'none') return;
       const dist = Math.hypot(e.clientX - pointerDownPos.x, e.clientY - pointerDownPos.y);
-      if (dist > 6) return; // Ignore drag/orbit
+      if (dist > 6) return;
 
       const ndc = get3DMouseNDC(e.clientX, e.clientY);
       if (!ndc) return;
@@ -2127,61 +2414,88 @@
         e.stopPropagation();
         const { face, turns } = hits[0].object.userData;
         if (face && turns) {
-          onUserInteractedWithMoveOrMethod();
-          engine.push({ face, turns }, 'user');
+          triggerUserMove({ face, turns }, 'arrow:' + hits[0].object.uuid);
         }
       }
+    });
+
+    renderer.domElement.addEventListener('pointerleave', () => {
+      if (hoveredArrow) {
+        hoveredArrow.scale.set(1, 1, 1);
+        hoveredArrow = null;
+      }
+      renderer.domElement.style.cursor = 'default';
     });
 
     // ------------------------------------------------------------- Viewport Rendering Loop
     function drawViewport(x, y, w, h, scene, camera) {
       renderer.setViewport(x, y, w, h);
       renderer.setScissor(x, y, w, h);
+      renderer.setScissorTest(true);
       renderer.render(scene, camera);
     }
 
-    function render() {
-      const w = window.innerWidth;
-      const h = window.innerHeight;
-      renderer.setScissorTest(true);
-
-      if (currentView === 'cube') {
-        camera3D.aspect = w / h;
-        camera3D.updateProjectionMatrix();
-        drawViewport(0, 0, w, h, scene3D, camera3D);
-      } else if (currentView === 'flat') {
-        diagram.resize(w, h);
-        drawViewport(0, 0, w, h, diagram.scene, diagram.camera);
-      } else {
-        // Both: 2D Circles above (top 58%), 3D Cube below (bottom 42%)
-        const lowerH = Math.round(h * 0.44);
-        const upperH = h - lowerH;
-
-        camera3D.aspect = w / lowerH;
-        camera3D.updateProjectionMatrix();
-        drawViewport(0, 0, w, lowerH, scene3D, camera3D);
-
-        diagram.resize(w, upperH);
-        drawViewport(0, lowerH, w, upperH, diagram.scene, diagram.camera);
-      }
-    }
-
     const clock = new THREE.Clock();
-    function tick() {
+
+    function animate() {
+      requestAnimationFrame(animate);
+
       const dt = Math.min(clock.getDelta(), 0.05);
       engine.update(dt);
       if (isCameraAnimating) updateCameraRotationAnimation();
       controls.update();
-      render();
-      requestAnimationFrame(tick);
+
+      const w = window.innerWidth;
+      const h = window.innerHeight;
+
+      renderer.setScissorTest(false);
+      renderer.clear();
+
+      const topH = Math.floor(h * 0.50);
+      const btmH = h - topH;
+      const leftW = Math.floor(w * 0.50);
+      const rightW = w - leftW;
+
+      if (viewMode === 'both') {
+        // Top-Left: 2D Three-Ring Projection
+        drawViewport(0, btmH, leftW, topH, diagram.scene, diagram.camera);
+        // Top-Right: 3D Solid Rubik's Cube
+        drawViewport(leftW, btmH, rightW, topH, scene3D, camera3D);
+      } else if (viewMode === 'cube') {
+        drawViewport(0, btmH, w, topH, scene3D, camera3D);
+      } else if (viewMode === 'circles') {
+        drawViewport(0, btmH, w, topH, diagram.scene, diagram.camera);
+      }
     }
-    tick();
+
+    function onResize() {
+      const w = window.innerWidth;
+      const h = window.innerHeight;
+      renderer.setSize(w, h);
+
+      const topH = Math.floor(h * 0.50);
+      const leftW = Math.floor(w * 0.50);
+      const rightW = w - leftW;
+
+      if (viewMode === 'both') {
+        camera3D.aspect = rightW / topH;
+        diagram.resize(leftW, topH);
+      } else if (viewMode === 'cube') {
+        camera3D.aspect = w / topH;
+        diagram.resize(w, topH);
+      } else if (viewMode === 'circles') {
+        camera3D.aspect = w / topH;
+        diagram.resize(w, topH);
+      }
+      camera3D.updateProjectionMatrix();
+      updateCircleControlsPosition();
+    }
 
     window.addEventListener('resize', () => {
-      renderer.setSize(window.innerWidth, window.innerHeight);
-      updateCircleControlsPosition();
+      onResize();
     });
-    updateCircleControlsPosition();
+    onResize();
+    animate();
 
     // Console API
     window.cube = {

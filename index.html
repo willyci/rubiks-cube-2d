@@ -555,8 +555,8 @@
               <g stroke="#101a18" stroke-width="1.8" stroke-linejoin="round">
                 <!-- Top Face (White) -->
                 <polygon points="50,12 80,27 50,42 20,27" fill="#f5f5f5"/>
-                <line x1="30" y1="17" x2="60" y2="32"/>
-                <line x1="40" y1="22" x2="70" y2="37"/>
+                <line x1="30" y1="22" x2="60" y2="37"/>
+                <line x1="40" y1="17" x2="70" y2="32"/>
                 <line x1="70" y1="22" x2="40" y2="37"/>
                 <line x1="60" y1="17" x2="30" y2="32"/>
 
@@ -597,20 +597,44 @@
         </a>
       </div>
 
-      <!-- 4x4 Rubik's Revenge (COMING SOON) -->
-      <div class="cube-card disabled" title="四阶魔方正在紧锣密鼓研发中，敬请期待！">
+      <!-- 4x4 Rubik's Revenge (ACTIVE) -->
+      <div class="cube-card ready" onclick="window.location.href='./cubex4.html'">
         <div>
           <div class="card-top">
             <span class="dim-tag">4×4×4</span>
-            <span class="status-tag coming-soon">⏳ 研发中 · Soon</span>
+            <span class="status-tag active">● 可玩 · Ready</span>
           </div>
 
           <div class="card-graphic">
-            <svg class="cube-icon" width="84" height="84" viewBox="0 0 100 100" fill="none" opacity="0.6">
-              <g stroke="#1a2d28" stroke-width="1.5" stroke-linejoin="round">
-                <polygon points="50,14 78,28 50,42 22,28" fill="#e0e8e4"/>
-                <polygon points="22,28 50,42 50,74 22,60" fill="#1b853e"/>
-                <polygon points="50,42 78,28 78,60 50,74" fill="#b02428"/>
+            <svg class="cube-icon" width="84" height="84" viewBox="0 0 100 100" fill="none">
+              <!-- Isometric 4x4 Cube -->
+              <g stroke="#101a18" stroke-width="1.5" stroke-linejoin="round">
+                <!-- Top Face (White) -->
+                <polygon points="50,12 80,27 50,42 20,27" fill="#f5f5f5"/>
+                <line x1="27.5" y1="23.25" x2="57.5" y2="38.25"/>
+                <line x1="35" y1="19.5" x2="65" y2="34.5"/>
+                <line x1="42.5" y1="15.75" x2="72.5" y2="30.75"/>
+                <line x1="57.5" y1="15.75" x2="27.5" y2="30.75"/>
+                <line x1="65" y1="19.5" x2="35" y2="34.5"/>
+                <line x1="72.5" y1="23.25" x2="42.5" y2="38.25"/>
+
+                <!-- Left Face (Green) -->
+                <polygon points="20,27 50,42 50,77 20,62" fill="#1fa04a"/>
+                <line x1="27.5" y1="30.75" x2="27.5" y2="65.75"/>
+                <line x1="35" y1="34.5" x2="35" y2="69.5"/>
+                <line x1="42.5" y1="38.25" x2="42.5" y2="73.25"/>
+                <line x1="20" y1="35.75" x2="50" y2="50.75"/>
+                <line x1="20" y1="44.5" x2="50" y2="59.5"/>
+                <line x1="20" y1="53.25" x2="50" y2="68.25"/>
+
+                <!-- Right Face (Red) -->
+                <polygon points="50,42 80,27 80,62 50,77" fill="#d6262b"/>
+                <line x1="57.5" y1="38.25" x2="57.5" y2="73.25"/>
+                <line x1="65" y1="34.5" x2="65" y2="69.5"/>
+                <line x1="72.5" y1="30.75" x2="72.5" y2="65.75"/>
+                <line x1="50" y1="50.75" x2="80" y2="35.75"/>
+                <line x1="50" y1="59.5" x2="80" y2="44.5"/>
+                <line x1="50" y1="68.25" x2="80" y2="53.25"/>
               </g>
             </svg>
           </div>
@@ -622,29 +646,63 @@
           </div>
 
           <ul class="feature-list">
-            <li class="dimmed"><span class="bullet">✦</span> 四层同心环高维投影架构</li>
-            <li class="dimmed"><span class="bullet">✦</span> 偶数中轴与特殊单翻棱 (Parity) 识别</li>
-            <li class="dimmed"><span class="bullet">✦</span> 经典 Yau 氏与 Meyer 降阶体系支持</li>
+            <li><span class="bullet">✦</span> 2D 四重同心环高维投影架构</li>
+            <li><span class="bullet">✦</span> 外层与宽层 (Wide) 联动控制</li>
+            <li><span class="bullet">✦</span> 4 大求解体系 (Reduction / Yau / Hoya / Parity)</li>
+            <li><span class="bullet">✦</span> 无障碍高对比度几何符号色盲模式</li>
           </ul>
         </div>
 
-        <div class="btn-launch locked">即将推出 · In Development</div>
+        <a class="btn-launch primary" href="./cubex4.html">
+          <span>进入四阶 · Play 4×4</span>
+          <span>→</span>
+        </a>
       </div>
 
-      <!-- 5x5 Professor's Cube (COMING SOON) -->
-      <div class="cube-card disabled" title="五阶顶级魔方正在规划中！">
+      <!-- 5x5 Professor's Cube (ACTIVE) -->
+      <div class="cube-card ready" onclick="window.location.href='./cubex5.html'">
         <div>
           <div class="card-top">
             <span class="dim-tag">5×5×5</span>
-            <span class="status-tag coming-soon">⏳ 规划中 · Planned</span>
+            <span class="status-tag active">● 可玩 · Ready</span>
           </div>
 
           <div class="card-graphic">
-            <svg class="cube-icon" width="84" height="84" viewBox="0 0 100 100" fill="none" opacity="0.45">
-              <g stroke="#1a2d28" stroke-width="1.2" stroke-linejoin="round">
-                <polygon points="50,14 78,28 50,42 22,28" fill="#ccd6d2"/>
-                <polygon points="22,28 50,42 50,74 22,60" fill="#156c32"/>
-                <polygon points="50,42 78,28 78,60 50,74" fill="#911e22"/>
+            <svg class="cube-icon" width="84" height="84" viewBox="0 0 100 100" fill="none">
+              <!-- Isometric 5x5 Cube -->
+              <g stroke="#101a18" stroke-width="1.3" stroke-linejoin="round">
+                <!-- Top Face (White) -->
+                <polygon points="50,12 80,27 50,42 20,27" fill="#f5f5f5"/>
+                <line x1="26" y1="24" x2="56" y2="39"/>
+                <line x1="32" y1="21" x2="62" y2="36"/>
+                <line x1="38" y1="18" x2="68" y2="33"/>
+                <line x1="44" y1="15" x2="74" y2="30"/>
+                <line x1="56" y1="15" x2="26" y2="30"/>
+                <line x1="62" y1="18" x2="32" y2="33"/>
+                <line x1="68" y1="21" x2="38" y2="36"/>
+                <line x1="74" y1="24" x2="44" y2="39"/>
+
+                <!-- Left Face (Green) -->
+                <polygon points="20,27 50,42 50,77 20,62" fill="#1fa04a"/>
+                <line x1="26" y1="30" x2="26" y2="65"/>
+                <line x1="32" y1="33" x2="32" y2="68"/>
+                <line x1="38" y1="36" x2="38" y2="71"/>
+                <line x1="44" y1="39" x2="44" y2="74"/>
+                <line x1="20" y1="34" x2="50" y2="49"/>
+                <line x1="20" y1="41" x2="50" y2="56"/>
+                <line x1="20" y1="48" x2="50" y2="63"/>
+                <line x1="20" y1="55" x2="50" y2="70"/>
+
+                <!-- Right Face (Red) -->
+                <polygon points="50,42 80,27 80,62 50,77" fill="#d6262b"/>
+                <line x1="56" y1="39" x2="56" y2="74"/>
+                <line x1="62" y1="36" x2="62" y2="71"/>
+                <line x1="68" y1="33" x2="68" y2="68"/>
+                <line x1="74" y1="30" x2="74" y2="65"/>
+                <line x1="50" y1="49" x2="80" y2="34"/>
+                <line x1="50" y1="56" x2="80" y2="41"/>
+                <line x1="50" y1="63" x2="80" y2="48"/>
+                <line x1="50" y1="70" x2="80" y2="55"/>
               </g>
             </svg>
           </div>
@@ -656,13 +714,17 @@
           </div>
 
           <ul class="feature-list">
-            <li class="dimmed"><span class="bullet">✦</span> 五重同心环交点微积分映射</li>
-            <li class="dimmed"><span class="bullet">✦</span> 经典 Free-Slice 自由切片降阶解法</li>
-            <li class="dimmed"><span class="bullet">✦</span> 98 块色块超大规模状态拓扑分析</li>
+            <li><span class="bullet">✦</span> 2D 五重同心环交点微积分映射</li>
+            <li><span class="bullet">✦</span> 外层、中轴切片 (M/S/E) 与宽层独立驱动</li>
+            <li><span class="bullet">✦</span> 4 大降阶法 (Reduction / Free-Slice / Yau5 / Parity)</li>
+            <li><span class="bullet">✦</span> 150 面色块实时拓扑联动与色盲模式</li>
           </ul>
         </div>
 
-        <div class="btn-launch locked">规划中 · Planned</div>
+        <a class="btn-launch primary" href="./cubex5.html">
+          <span>进入五阶 · Play 5×5</span>
+          <span>→</span>
+        </a>
       </div>
 
       <!-- 6x6 V-Cube 6 (COMING SOON) -->
@@ -675,10 +737,46 @@
 
           <div class="card-graphic">
             <svg class="cube-icon" width="84" height="84" viewBox="0 0 100 100" fill="none" opacity="0.38">
+              <!-- Isometric 6x6 Cube -->
               <g stroke="#1a2d28" stroke-width="1" stroke-linejoin="round">
-                <polygon points="50,14 78,28 50,42 22,28" fill="#bcc7c3"/>
-                <polygon points="22,28 50,42 50,74 22,60" fill="#115929"/>
-                <polygon points="50,42 78,28 78,60 50,74" fill="#75181b"/>
+                <!-- Top Face (White) -->
+                <polygon points="50,12 80,27 50,42 20,27" fill="#bcc7c3"/>
+                <line x1="25" y1="24.5" x2="55" y2="39.5"/>
+                <line x1="30" y1="22" x2="60" y2="37"/>
+                <line x1="35" y1="19.5" x2="65" y2="34.5"/>
+                <line x1="40" y1="17" x2="70" y2="32"/>
+                <line x1="45" y1="14.5" x2="75" y2="29.5"/>
+                <line x1="55" y1="14.5" x2="25" y2="29.5"/>
+                <line x1="60" y1="17" x2="30" y2="32"/>
+                <line x1="65" y1="19.5" x2="35" y2="34.5"/>
+                <line x1="70" y1="22" x2="40" y2="37"/>
+                <line x1="75" y1="24.5" x2="45" y2="39.5"/>
+
+                <!-- Left Face (Green) -->
+                <polygon points="20,27 50,42 50,77 20,62" fill="#115929"/>
+                <line x1="25" y1="29.5" x2="25" y2="64.5"/>
+                <line x1="30" y1="32" x2="30" y2="67"/>
+                <line x1="35" y1="34.5" x2="35" y2="69.5"/>
+                <line x1="40" y1="37" x2="40" y2="72"/>
+                <line x1="45" y1="39.5" x2="45" y2="74.5"/>
+                <line x1="20" y1="32.83" x2="50" y2="47.83"/>
+                <line x1="20" y1="38.67" x2="50" y2="53.67"/>
+                <line x1="20" y1="44.5" x2="50" y2="59.5"/>
+                <line x1="20" y1="50.33" x2="50" y2="65.33"/>
+                <line x1="20" y1="56.17" x2="50" y2="71.17"/>
+
+                <!-- Right Face (Red) -->
+                <polygon points="50,42 80,27 80,62 50,77" fill="#75181b"/>
+                <line x1="55" y1="39.5" x2="55" y2="74.5"/>
+                <line x1="60" y1="37" x2="60" y2="72"/>
+                <line x1="65" y1="34.5" x2="65" y2="69.5"/>
+                <line x1="70" y1="32" x2="70" y2="67"/>
+                <line x1="75" y1="29.5" x2="75" y2="64.5"/>
+                <line x1="50" y1="47.83" x2="80" y2="32.83"/>
+                <line x1="50" y1="53.67" x2="80" y2="38.67"/>
+                <line x1="50" y1="59.5" x2="80" y2="44.5"/>
+                <line x1="50" y1="65.33" x2="80" y2="50.33"/>
+                <line x1="50" y1="71.17" x2="80" y2="56.17"/>
               </g>
             </svg>
           </div>
@@ -709,10 +807,52 @@
 
           <div class="card-graphic">
             <svg class="cube-icon" width="84" height="84" viewBox="0 0 100 100" fill="none" opacity="0.32">
+              <!-- Isometric 7x7 Cube -->
               <g stroke="#1a2d28" stroke-width="0.9" stroke-linejoin="round">
-                <polygon points="50,14 78,28 50,42 22,28" fill="#abb5b2"/>
-                <polygon points="22,28 50,42 50,74 22,60" fill="#0d4620"/>
-                <polygon points="50,42 78,28 78,60 50,74" fill="#5c1316"/>
+                <!-- Top Face (White) -->
+                <polygon points="50,12 80,27 50,42 20,27" fill="#abb5b2"/>
+                <line x1="24.29" y1="24.86" x2="54.29" y2="39.86"/>
+                <line x1="28.57" y1="22.71" x2="58.57" y2="37.71"/>
+                <line x1="32.86" y1="20.57" x2="62.86" y2="35.57"/>
+                <line x1="37.14" y1="18.43" x2="67.14" y2="33.43"/>
+                <line x1="41.43" y1="16.29" x2="71.43" y2="31.29"/>
+                <line x1="45.71" y1="14.14" x2="75.71" y2="29.14"/>
+                <line x1="54.29" y1="14.14" x2="24.29" y2="29.14"/>
+                <line x1="58.57" y1="16.29" x2="28.57" y2="31.29"/>
+                <line x1="62.86" y1="18.43" x2="32.86" y2="33.43"/>
+                <line x1="67.14" y1="20.57" x2="37.14" y2="35.57"/>
+                <line x1="71.43" y1="22.71" x2="41.43" y2="37.71"/>
+                <line x1="75.71" y1="24.86" x2="45.71" y2="39.86"/>
+
+                <!-- Left Face (Green) -->
+                <polygon points="20,27 50,42 50,77 20,62" fill="#0d4620"/>
+                <line x1="24.29" y1="29.14" x2="24.29" y2="64.14"/>
+                <line x1="28.57" y1="31.29" x2="28.57" y2="66.29"/>
+                <line x1="32.86" y1="33.43" x2="32.86" y2="68.43"/>
+                <line x1="37.14" y1="35.57" x2="37.14" y2="70.57"/>
+                <line x1="41.43" y1="37.71" x2="41.43" y2="72.71"/>
+                <line x1="45.71" y1="39.86" x2="45.71" y2="74.86"/>
+                <line x1="20" y1="32" x2="50" y2="47"/>
+                <line x1="20" y1="37" x2="50" y2="52"/>
+                <line x1="20" y1="42" x2="50" y2="57"/>
+                <line x1="20" y1="47" x2="50" y2="62"/>
+                <line x1="20" y1="52" x2="50" y2="67"/>
+                <line x1="20" y1="57" x2="50" y2="72"/>
+
+                <!-- Right Face (Red) -->
+                <polygon points="50,42 80,27 80,62 50,77" fill="#5c1316"/>
+                <line x1="54.29" y1="39.86" x2="54.29" y2="74.86"/>
+                <line x1="58.57" y1="37.71" x2="58.57" y2="72.71"/>
+                <line x1="62.86" y1="35.57" x2="62.86" y2="70.57"/>
+                <line x1="67.14" y1="33.43" x2="67.14" y2="68.43"/>
+                <line x1="71.43" y1="31.29" x2="71.43" y2="66.29"/>
+                <line x1="75.71" y1="29.14" x2="75.71" y2="64.14"/>
+                <line x1="50" y1="47" x2="80" y2="32"/>
+                <line x1="50" y1="52" x2="80" y2="37"/>
+                <line x1="50" y1="57" x2="80" y2="42"/>
+                <line x1="50" y1="62" x2="80" y2="47"/>
+                <line x1="50" y1="67" x2="80" y2="52"/>
+                <line x1="50" y1="72" x2="80" y2="57"/>
               </g>
             </svg>
           </div>

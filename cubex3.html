@@ -58,28 +58,6 @@
     }
 
     /* Quadrant Layout Framework */
-    .quadrant-divider-h {
-      position: fixed;
-      top: 50%;
-      left: 0;
-      right: 0;
-      height: 1px;
-      background: linear-gradient(90deg, transparent, rgba(111, 227, 198, 0.22) 15%, rgba(111, 227, 198, 0.22) 85%, transparent);
-      pointer-events: none;
-      z-index: 6;
-    }
-
-    .quadrant-divider-v {
-      position: fixed;
-      top: 0;
-      bottom: 50%;
-      left: 50%;
-      width: 1px;
-      background: linear-gradient(180deg, transparent, rgba(111, 227, 198, 0.22) 15%, rgba(111, 227, 198, 0.22) 85%, transparent);
-      pointer-events: none;
-      z-index: 6;
-    }
-
     .quadrant-tag {
       position: fixed;
       z-index: 15;
@@ -796,6 +774,9 @@
     body.color-blind-mode .circle-rot-btn[data-face="B"]::after { content: " △"; font-size: 8px; opacity: 0.95; color: #0080ff; }
     body.color-blind-mode .circle-rot-btn[data-face="R"]::after { content: " □"; font-size: 8px; opacity: 0.95; color: #ff4d4f; }
     body.color-blind-mode .circle-rot-btn[data-face="L"]::after { content: " ★"; font-size: 8px; opacity: 0.95; color: #ff9900; }
+    body.color-blind-mode .circle-rot-btn[data-face="M"]::after { content: " ☆"; font-size: 8px; opacity: 0.95; color: #ff8c1a; }
+    body.color-blind-mode .circle-rot-btn[data-face="E"]::after { content: " ◐"; font-size: 8px; opacity: 0.95; color: #ffd500; }
+    body.color-blind-mode .circle-rot-btn[data-face="S"]::after { content: " ✢"; font-size: 8px; opacity: 0.95; color: #00d084; }
 
     body.color-blind-mode .hist-chip[data-face="U"]::after { content: "○"; font-size: 8px; opacity: 0.95; margin-left: 3px; color: #f5f5f5; }
     body.color-blind-mode .hist-chip[data-face="D"]::after { content: "●"; font-size: 8px; opacity: 0.95; margin-left: 3px; color: #ffd500; }
@@ -892,6 +873,9 @@
     .circle-rot-btn[data-face="B"] { border-color: #0080ff; color: #0080ff; }
     .circle-rot-btn[data-face="R"] { border-color: #ff4d4f; color: #ff4d4f; }
     .circle-rot-btn[data-face="L"] { border-color: #ff9900; color: #ff9900; }
+    .circle-rot-btn[data-face="M"] { border-color: #ff8c1a; color: #ff8c1a; border-style: dashed; }
+    .circle-rot-btn[data-face="E"] { border-color: #ffd500; color: #ffd500; border-style: dashed; }
+    .circle-rot-btn[data-face="S"] { border-color: #00d084; color: #00d084; border-style: dashed; }
 
     .circle-rot-btn[data-face="U"]:hover { background: rgba(240, 240, 240, 0.25); box-shadow: 0 0 10px rgba(240, 240, 240, 0.5); }
     .circle-rot-btn[data-face="D"]:hover { background: rgba(255, 213, 0, 0.25); box-shadow: 0 0 10px rgba(255, 213, 0, 0.5); }
@@ -899,6 +883,9 @@
     .circle-rot-btn[data-face="B"]:hover { background: rgba(0, 128, 255, 0.25); box-shadow: 0 0 10px rgba(0, 128, 255, 0.5); }
     .circle-rot-btn[data-face="R"]:hover { background: rgba(255, 77, 79, 0.25); box-shadow: 0 0 10px rgba(255, 77, 79, 0.5); }
     .circle-rot-btn[data-face="L"]:hover { background: rgba(255, 153, 0, 0.25); box-shadow: 0 0 10px rgba(255, 153, 0, 0.5); }
+    .circle-rot-btn[data-face="M"]:hover { background: rgba(255, 140, 26, 0.25); box-shadow: 0 0 10px rgba(255, 140, 26, 0.5); }
+    .circle-rot-btn[data-face="E"]:hover { background: rgba(255, 213, 0, 0.25); box-shadow: 0 0 10px rgba(255, 213, 0, 0.5); }
+    .circle-rot-btn[data-face="S"]:hover { background: rgba(0, 208, 132, 0.25); box-shadow: 0 0 10px rgba(0, 208, 132, 0.5); }
 
     /* 3D Cube Rotation Controls Widget (Next to Cube) */
     .cube-controls-widget {
@@ -1023,23 +1010,29 @@
 
   <!-- Circle Rotation Buttons Overlay (Directly on Circle Lines) -->
   <div id="circleControlsOverlay">
-    <!-- Top Circle: U (outer) & D (inner) -->
+    <!-- Top Circle: U (outer), E (middle) & D (inner) -->
     <button class="circle-rot-btn" id="btn-rot-U-ccw" data-face="U" data-turns="-1" title="逆时针旋转顶层外环 U'">U'</button>
     <button class="circle-rot-btn" id="btn-rot-U-cw" data-face="U" data-turns="1" title="顺时针旋转顶层外环 U">U</button>
     <button class="circle-rot-btn" id="btn-rot-D-ccw" data-face="D" data-turns="-1" title="逆时针旋转底层内环 D'">D'</button>
     <button class="circle-rot-btn" id="btn-rot-D-cw" data-face="D" data-turns="1" title="顺时针旋转底层内环 D">D</button>
+    <button class="circle-rot-btn" id="btn-rot-E-ccw" data-face="E" data-turns="-1" title="逆时针旋转水平中层中环 E'">E'</button>
+    <button class="circle-rot-btn" id="btn-rot-E-cw" data-face="E" data-turns="1" title="顺时针旋转水平中层中环 E">E</button>
 
-    <!-- Bottom-Left Circle: F (outer) & B (inner) -->
+    <!-- Bottom-Left Circle: F (outer), S (middle) & B (inner) -->
     <button class="circle-rot-btn" id="btn-rot-F-ccw" data-face="F" data-turns="-1" title="逆时针旋转前层外环 F'">F'</button>
     <button class="circle-rot-btn" id="btn-rot-F-cw" data-face="F" data-turns="1" title="顺时针旋转前层外环 F">F</button>
     <button class="circle-rot-btn" id="btn-rot-B-ccw" data-face="B" data-turns="-1" title="逆时针旋转后层内环 B'">B'</button>
     <button class="circle-rot-btn" id="btn-rot-B-cw" data-face="B" data-turns="1" title="顺时针旋转后层内环 B">B</button>
+    <button class="circle-rot-btn" id="btn-rot-S-ccw" data-face="S" data-turns="-1" title="逆时针旋转前后中层中环 S'">S'</button>
+    <button class="circle-rot-btn" id="btn-rot-S-cw" data-face="S" data-turns="1" title="顺时针旋转前后中层中环 S">S</button>
 
-    <!-- Bottom-Right Circle: R (outer) & L (inner) -->
+    <!-- Bottom-Right Circle: R (outer), M (middle) & L (inner) -->
     <button class="circle-rot-btn" id="btn-rot-R-ccw" data-face="R" data-turns="-1" title="逆时针旋转右层外环 R'">R'</button>
     <button class="circle-rot-btn" id="btn-rot-R-cw" data-face="R" data-turns="1" title="顺时针旋转右层外环 R">R</button>
     <button class="circle-rot-btn" id="btn-rot-L-ccw" data-face="L" data-turns="-1" title="逆时针旋转左层内环 L'">L'</button>
     <button class="circle-rot-btn" id="btn-rot-L-cw" data-face="L" data-turns="1" title="顺时针旋转左层内环 L">L</button>
+    <button class="circle-rot-btn" id="btn-rot-M-ccw" data-face="M" data-turns="-1" title="逆时针旋转竖直中层中环 M'">M'</button>
+    <button class="circle-rot-btn" id="btn-rot-M-cw" data-face="M" data-turns="1" title="顺时针旋转竖直中层中环 M">M</button>
   </div>
 
   <!-- 3D Cube Rotation Controls Visibility Widget (Next to Cube) -->
@@ -1068,8 +1061,6 @@
   </div>
 
   <!-- Quadrant Dividers & Tags -->
-  <div class="quadrant-divider-h"></div>
-  <div class="quadrant-divider-v"></div>
 
   <div class="quadrant-tag tag-top-left">
     <span class="dot-indicator"></span>
@@ -2046,6 +2037,19 @@
     }
 
     // ------------------------------------------------------------- 2D Three-Ring System
+    // Which ring of the 2D diagram each move turns
+    const RING_OF_MOVE = {
+      U: { axis: 'Y', slice: 1 },
+      D: { axis: 'Y', slice: -1 },
+      R: { axis: 'X', slice: 1 },
+      L: { axis: 'X', slice: -1 },
+      F: { axis: 'Z', slice: 1 },
+      B: { axis: 'Z', slice: -1 },
+      M: { axis: 'X', slice: 0 },
+      E: { axis: 'Y', slice: 0 },
+      S: { axis: 'Z', slice: 0 },
+    };
+
     class ThreeRingDiagram {
       constructor(cube) {
         this.cube = cube;
@@ -2169,10 +2173,45 @@
       setRingHighlight(axis, slice, on) {
         for (const r of this.rings) {
           if (r.axis === axis && r.slice === slice) {
-            r.glowMat.opacity = on ? 1.0 : 0.0;
-            r.mat.color.setHex(on ? THEME.ringActive : THEME.ringInactive);
-            r.mat.opacity = on ? 0.95 : 0.32;
+            r.active = on;
+            this._paintRing(r);
           }
+        }
+      }
+
+      /**
+       * Pointer is over a ring button: tint the rings it turns in the button's
+       * colour. Pass color = null to clear. A turn in progress keeps its orange
+       * highlight, and the tint comes back once that turn lands.
+       */
+      setHoverRings(axis, slices, color) {
+        for (const r of this.rings) {
+          r.hoverColor = color && r.axis === axis && slices.includes(r.slice) ? color : null;
+          this._paintRing(r);
+        }
+      }
+
+      /** The rings a move turns: { axis, slices } in this diagram's ring keys. */
+      ringsOf(face) {
+        const ring = RING_OF_MOVE[face];
+        return ring ? { axis: ring.axis, slices: [ring.slice] } : null;
+      }
+
+      _paintRing(r) {
+        if (r.active) {
+          r.glowMat.color.setHex(THEME.ringActive);
+          r.glowMat.opacity = 1.0;
+          r.mat.color.setHex(THEME.ringActive);
+          r.mat.opacity = 0.95;
+        } else if (r.hoverColor) {
+          r.glowMat.color.set(r.hoverColor);
+          r.glowMat.opacity = 1.0;
+          r.mat.color.set(r.hoverColor);
+          r.mat.opacity = 0.95;
+        } else {
+          r.glowMat.opacity = 0.0;
+          r.mat.color.setHex(THEME.ringInactive);
+          r.mat.opacity = 0.32;
         }
       }
 
@@ -2181,19 +2220,7 @@
        * Lights up the active ring in orange.
        */
       beginMove(face, turns) {
-        const axisMap = {
-          U: { axis: 'Y', slice: 1 },
-          D: { axis: 'Y', slice: -1 },
-          R: { axis: 'X', slice: 1 },
-          L: { axis: 'X', slice: -1 },
-          F: { axis: 'Z', slice: 1 },
-          B: { axis: 'Z', slice: -1 },
-          M: { axis: 'X', slice: 0 },
-          E: { axis: 'Y', slice: 0 },
-          S: { axis: 'Z', slice: 0 },
-        };
-
-        const { axis, slice } = axisMap[face];
+        const { axis, slice } = RING_OF_MOVE[face];
         this.setRingHighlight(axis, slice, true);
 
         let normal;
@@ -2393,16 +2420,24 @@
         return { face: move.face, turns: -move.turns };
       }
 
+      /**
+       * Bring the cube up to date with everything already asked for. The turn
+       * in flight started first, so it has to land first - applying the queue
+       * ahead of it would compose the moves in a different order from the one
+       * the user clicked.
+       */
       flushPending() {
+        if (this.active) {
+          const move = this.active.move;
+          this.active.handle.setProgress(1);
+          this.active.handle.finish();
+          this.active = null;
+          this._recordFinished(move);
+        }
         while (this.queue.length > 0) {
           const next = this.queue.shift();
           this.cube.applyMove(next.face, next.turns);
           this._recordFinished(next);
-        }
-        if (this.active) {
-          this.active.handle.finish();
-          this._recordFinished(this.active.move);
-          this.active = null;
         }
         this.isScrambling = false;
       }
@@ -3275,6 +3310,7 @@
       const innerR = RING_CONFIG.r0 - RING_CONFIG.delta;
       const dAngOut = 65 * Math.PI / 180;
       const dAngIn = 48 * Math.PI / 180;
+      const dAngMid = 25 * Math.PI / 180;
 
       const systems = [
         {
@@ -3283,7 +3319,8 @@
           cy: RING_CONFIG.D,
           apex: Math.PI / 2, // 90 deg (Top)
           outerFace: 'U',
-          innerFace: 'D'
+          innerFace: 'D',
+          middleFace: 'E'
         },
         {
           name: 'Z',
@@ -3291,7 +3328,8 @@
           cy: -RING_CONFIG.D * 0.5,
           apex: Math.PI * 7 / 6, // 210 deg (Bottom-Left)
           outerFace: 'F',
-          innerFace: 'B'
+          innerFace: 'B',
+          middleFace: 'S'
         },
         {
           name: 'X',
@@ -3299,7 +3337,8 @@
           cy: -RING_CONFIG.D * 0.5,
           apex: Math.PI * 11 / 6, // 330 deg (Bottom-Right)
           outerFace: 'R',
-          innerFace: 'L'
+          innerFace: 'L',
+          middleFace: 'M'
         }
       ];
 
@@ -3327,6 +3366,17 @@
           wx: sys.cx + innerR * Math.cos(sys.apex - dAngIn),
           wy: sys.cy + innerR * Math.sin(sys.apex - dAngIn)
         });
+        // Middle circle (M/E/S slice): nearest the apex so it clears the other two pairs
+        btnDefs.push({
+          id: `btn-rot-${sys.middleFace}-ccw`,
+          wx: sys.cx + RING_CONFIG.r0 * Math.cos(sys.apex + dAngMid),
+          wy: sys.cy + RING_CONFIG.r0 * Math.sin(sys.apex + dAngMid)
+        });
+        btnDefs.push({
+          id: `btn-rot-${sys.middleFace}-cw`,
+          wx: sys.cx + RING_CONFIG.r0 * Math.cos(sys.apex - dAngMid),
+          wy: sys.cy + RING_CONFIG.r0 * Math.sin(sys.apex - dAngMid)
+        });
       }
 
       for (const b of btnDefs) {
@@ -3342,6 +3392,12 @@
     }
 
     document.querySelectorAll('.circle-rot-btn').forEach((btn) => {
+      // Hovering a button lights the ring it turns, in the button's own colour
+      btn.addEventListener('pointerenter', () => {
+        const ring = diagram.ringsOf(btn.dataset.face);
+        if (ring) diagram.setHoverRings(ring.axis, ring.slices, getComputedStyle(btn).borderTopColor);
+      });
+      btn.addEventListener('pointerleave', () => diagram.setHoverRings(null, [], null));
       btn.addEventListener('click', (e) => {
         e.stopPropagation();
         const face = btn.dataset.face;

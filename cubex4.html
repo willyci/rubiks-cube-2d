@@ -1,0 +1,3640 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>换个角度，解开魔方 · Rubik's Circles 4x4</title>
+  <style>
+    :root {
+      --bg: #22302d;
+      --ink: #e8f1ee;
+      --muted: #8fa8a1;
+      --accent: #ff8c1a;
+      --cyan: #6fe3c6;
+      --panel: rgba(16, 26, 24, 0.76);
+      --line: rgba(190, 216, 210, 0.2);
+    }
+
+    * { box-sizing: border-box; }
+
+    html, body {
+      margin: 0;
+      height: 100%;
+      overflow: hidden;
+      background: var(--bg);
+      color: var(--ink);
+      font: 13px/1.5 "Segoe UI", system-ui, -apple-system, "PingFang SC", "Microsoft YaHei", sans-serif;
+      user-select: none;
+      -webkit-user-select: none;
+    }
+
+    #app { position: fixed; inset: 0; }
+    #app canvas { display: block; width: 100%; height: 100%; }
+
+    #title {
+      position: fixed;
+      top: 10px;
+      left: 0;
+      right: 0;
+      text-align: center;
+      pointer-events: none;
+      z-index: 10;
+    }
+
+    #title h1 {
+      margin: 0;
+      font-size: 20px;
+      font-weight: 600;
+      letter-spacing: 0.16em;
+      color: var(--cyan);
+      text-shadow: 0 2px 20px rgba(0, 0, 0, 0.8), 0 0 14px rgba(111, 227, 198, 0.4);
+    }
+
+    #title p {
+      margin: 2px 0 0;
+      font-size: 11px;
+      color: var(--muted);
+      letter-spacing: 0.05em;
+    }
+
+    /* Quadrant Layout Framework */
+    .quadrant-tag {
+      position: fixed;
+      z-index: 15;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 3px 9px;
+      border-radius: 6px;
+      background: rgba(16, 26, 24, 0.75);
+      border: 1px solid rgba(111, 227, 198, 0.25);
+      color: var(--muted);
+      font-size: 11px;
+      font-weight: 500;
+      letter-spacing: 0.04em;
+      pointer-events: none;
+      backdrop-filter: blur(8px);
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.35);
+    }
+    .quadrant-tag .dot-indicator {
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+      background: var(--cyan);
+      box-shadow: 0 0 6px var(--cyan);
+    }
+    .quadrant-tag .dot-indicator.green {
+      background: #50e3c2;
+      box-shadow: 0 0 6px #50e3c2;
+    }
+    .tag-top-left {
+      top: 16px;
+      left: 180px;
+    }
+    .tag-top-right {
+      top: 16px;
+      right: 20px;
+    }
+
+    /* Lower-Right Panel: Moves, Actions, Controls & HUD */
+    #hud {
+      position: fixed;
+      top: calc(50% + 8px);
+      bottom: 16px;
+      right: 20px;
+      width: calc(50vw - 30px);
+      display: flex;
+      flex-direction: column;
+      z-index: 20;
+    }
+
+    #hud .panel {
+      flex: 1;
+      min-height: 0;
+      overflow-y: auto;
+      padding: 13px 15px;
+    }
+    #hud .panel::-webkit-scrollbar { width: 4px; }
+    #hud .panel::-webkit-scrollbar-track { background: rgba(0, 0, 0, 0.15); border-radius: 4px; }
+    #hud .panel::-webkit-scrollbar-thumb { background: var(--line); border-radius: 4px; }
+
+    .hud-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 14px;
+      height: 100%;
+    }
+
+    .hud-col {
+      display: flex;
+      flex-direction: column;
+      min-width: 0;
+    }
+
+    @media (max-width: 960px) {
+      .hud-grid {
+        grid-template-columns: 1fr;
+        gap: 10px;
+      }
+    }
+
+    /* Lower-Left Panel: 2x2 Solving Methods Guide */
+    #methods-panel {
+      position: fixed;
+      top: calc(50% + 8px);
+      bottom: 16px;
+      left: 20px;
+      width: calc(50vw - 30px);
+      display: flex;
+      flex-direction: column;
+      z-index: 20;
+      padding: 13px 15px;
+      transition: transform 0.25s ease, opacity 0.25s ease;
+    }
+
+    #methods-panel.collapsed {
+      transform: translateY(calc(100% + 24px));
+      opacity: 0;
+      pointer-events: none;
+    }
+
+    .panel-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 12px;
+      padding-bottom: 6px;
+      border-bottom: 1px solid var(--line);
+    }
+
+    .panel-title {
+      font-size: 13px;
+      font-weight: 600;
+      letter-spacing: 0.1em;
+      color: var(--cyan);
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .btn-icon {
+      flex: 0 0 auto;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      padding: 2px 7px;
+      min-width: 26px;
+      height: 24px;
+      font-size: 13px;
+      line-height: 1;
+      border-radius: 5px;
+      border: 1px solid var(--line);
+      background: rgba(255, 255, 255, 0.05);
+      color: var(--muted);
+      cursor: pointer;
+    }
+    .btn-icon:hover { color: var(--ink); background: rgba(255, 255, 255, 0.15); }
+
+    .method-scramble-status {
+      font-size: 11px;
+      color: var(--muted);
+      background: rgba(0, 0, 0, 0.25);
+      border: 1px solid rgba(190, 216, 210, 0.15);
+      border-radius: 6px;
+      padding: 5px 8px;
+      margin-bottom: 9px;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      line-height: 1.3;
+      flex-shrink: 0;
+      transition: all 0.2s ease;
+    }
+    .method-scramble-status.active {
+      color: #ffd175;
+      border-color: rgba(255, 140, 26, 0.4);
+      background: rgba(255, 140, 26, 0.1);
+    }
+    .status-indicator {
+      width: 7px;
+      height: 7px;
+      border-radius: 50%;
+      background: var(--muted);
+      flex-shrink: 0;
+      transition: background 0.2s ease;
+    }
+    .method-scramble-status.active .status-indicator {
+      background: var(--accent);
+      box-shadow: 0 0 6px var(--accent);
+    }
+
+    .btn-update-solution {
+      display: inline-flex;
+      flex-direction: row !important;
+      align-items: center;
+      justify-content: center;
+      gap: 7px;
+      width: 100%;
+      padding: 7px 12px;
+      margin-bottom: 10px;
+      background: linear-gradient(135deg, rgba(111, 227, 198, 0.16), rgba(255, 140, 26, 0.16));
+      border: 1px solid rgba(111, 227, 198, 0.45);
+      border-radius: 7px;
+      color: var(--cyan);
+      font-size: 12px;
+      font-weight: 700;
+      letter-spacing: 0.06em;
+      cursor: pointer;
+      backdrop-filter: blur(8px);
+      -webkit-backdrop-filter: blur(8px);
+      box-shadow: 0 2px 10px rgba(0, 0, 0, 0.25);
+      transition: all 0.2s ease;
+      flex-shrink: 0;
+      user-select: none;
+      -webkit-user-select: none;
+    }
+
+    .btn-update-solution:hover {
+      background: linear-gradient(135deg, rgba(111, 227, 198, 0.32), rgba(255, 140, 26, 0.32));
+      border-color: var(--cyan);
+      color: #fff;
+      transform: translateY(-1px);
+      box-shadow: 0 4px 16px rgba(111, 227, 198, 0.35);
+    }
+
+    .btn-update-solution:active {
+      transform: translateY(1px);
+      box-shadow: 0 1px 6px rgba(111, 227, 198, 0.2);
+    }
+
+    .btn-update-solution .btn-update-icon {
+      font-size: 13px;
+      color: var(--accent);
+      transition: transform 0.3s ease;
+    }
+
+    .btn-update-solution:hover .btn-update-icon {
+      transform: rotate(180deg) scale(1.2);
+    }
+
+    .tabs {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 4px;
+      margin-bottom: 10px;
+    }
+
+    .tab {
+      background: rgba(0, 0, 0, 0.3);
+      border: 1px solid var(--line);
+      border-radius: 6px;
+      padding: 6px 2px;
+      color: var(--muted);
+      font-size: 11px;
+      font-weight: 600;
+      letter-spacing: 0.04em;
+      cursor: pointer;
+      text-align: center;
+      transition: all 0.15s ease;
+    }
+
+    .tab:hover {
+      color: var(--ink);
+      border-color: rgba(111, 227, 198, 0.4);
+    }
+
+    .tab.active {
+      background: rgba(111, 227, 198, 0.16);
+      border-color: var(--cyan);
+      color: var(--cyan);
+      box-shadow: 0 0 10px rgba(111, 227, 198, 0.2);
+    }
+
+    .tab-content {
+      display: none;
+      overflow-y: auto;
+      flex: 1;
+      min-height: 0;
+      padding-right: 4px;
+    }
+
+    .tab-content.active {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+    .tab-content::-webkit-scrollbar { width: 4px; }
+    .tab-content::-webkit-scrollbar-track { background: rgba(0, 0, 0, 0.15); border-radius: 4px; }
+    .tab-content::-webkit-scrollbar-thumb { background: var(--line); border-radius: 4px; }
+
+    .step-card {
+      background: rgba(0, 0, 0, 0.22);
+      border: 1px solid rgba(190, 216, 210, 0.12);
+      border-radius: 8px;
+      padding: 8px 10px;
+      margin-bottom: 7px;
+      transition: border-color 0.15s ease;
+    }
+
+    .step-card:hover {
+      border-color: rgba(111, 227, 198, 0.3);
+    }
+
+    .step-title {
+      font-weight: 600;
+      color: var(--ink);
+      font-size: 11.5px;
+      margin-bottom: 4px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .step-badge {
+      font-size: 9.5px;
+      background: rgba(111, 227, 198, 0.15);
+      color: var(--cyan);
+      border-radius: 4px;
+      padding: 1px 5px;
+      font-weight: 500;
+    }
+
+    .step-desc {
+      font-size: 10.5px;
+      color: var(--muted);
+      line-height: 1.45;
+      margin-bottom: 5px;
+    }
+
+    .alg-box {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      background: rgba(0, 0, 0, 0.32);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      border-radius: 5px;
+      padding: 4px 7px;
+      margin-top: 5px;
+      gap: 6px;
+    }
+
+    .alg-text {
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+      font-size: 10.5px;
+      color: #ffd175;
+      font-weight: 600;
+      letter-spacing: 0.04em;
+      word-break: break-all;
+    }
+
+    .btn-run {
+      font-size: 10px;
+      padding: 3px 7px;
+      min-width: unset;
+      background: rgba(255, 140, 26, 0.15);
+      border: 1px solid rgba(255, 140, 26, 0.4);
+      color: var(--accent);
+      border-radius: 4px;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      gap: 3px;
+      flex-shrink: 0;
+      font-weight: 600;
+    }
+    .btn-run:hover {
+      background: var(--accent);
+      color: #141e1c;
+    }
+
+    .btn-hub {
+      position: fixed;
+      top: 16px;
+      left: 20px;
+      z-index: 30;
+      display: inline-flex;
+      align-items: center;
+      gap: 7px;
+      padding: 6px 14px;
+      border-radius: 8px;
+      background: rgba(16, 26, 24, 0.85);
+      border: 1px solid rgba(111, 227, 198, 0.3);
+      color: var(--cyan);
+      font-size: 12px;
+      font-weight: 600;
+      letter-spacing: 0.04em;
+      text-decoration: none;
+      backdrop-filter: blur(10px);
+      -webkit-backdrop-filter: blur(10px);
+      box-shadow: 0 4px 16px rgba(0, 0, 0, 0.45);
+      transition: all 0.2s ease;
+      cursor: pointer;
+    }
+    .btn-hub:hover {
+      background: rgba(111, 227, 198, 0.18);
+      border-color: var(--cyan);
+      box-shadow: 0 4px 20px rgba(111, 227, 198, 0.25);
+      transform: translateY(-1px);
+      color: #fff;
+    }
+
+    #toggleMethodsFloat {
+      position: fixed;
+      bottom: 16px;
+      left: 20px;
+      z-index: 25;
+      display: none;
+      padding: 6px 14px;
+      font-size: 12px;
+      font-weight: 600;
+      border-radius: 8px;
+      background: var(--panel);
+      border: 1px solid var(--line);
+      color: var(--cyan);
+      backdrop-filter: blur(8px);
+      box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4);
+    }
+    #toggleMethodsFloat:hover { background: rgba(111, 227, 198, 0.15); }
+
+    .panel {
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: 14px;
+      padding: 16px;
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
+      box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
+    }
+
+    .row { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 11px; }
+    .row:last-child { margin-bottom: 0; }
+
+    .row.label {
+      font-size: 10px;
+      letter-spacing: 0.2em;
+      text-transform: uppercase;
+      color: var(--muted);
+      margin-bottom: 6px;
+    }
+
+    .row.label.between {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .history-count {
+      font-size: 10px;
+      letter-spacing: 0.05em;
+      text-transform: none;
+      color: var(--cyan);
+      font-weight: 600;
+    }
+
+    .history-box {
+      background: rgba(0, 0, 0, 0.28);
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      padding: 8px;
+      min-height: 140px;
+      max-height: 260px;
+      overflow-y: auto;
+      margin-bottom: 6px;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 4px;
+      align-content: flex-start;
+      width: 100%;
+      flex: 1;
+    }
+
+    .history-box::-webkit-scrollbar { width: 4px; }
+    .history-box::-webkit-scrollbar-track { background: rgba(0, 0, 0, 0.15); border-radius: 4px; }
+    .history-box::-webkit-scrollbar-thumb { background: var(--line); border-radius: 4px; }
+    .history-box::-webkit-scrollbar-thumb:hover { background: var(--muted); }
+
+    .history-empty {
+      width: 100%;
+      text-align: center;
+      padding: 20px 0;
+      color: var(--muted);
+      font-size: 11px;
+      font-style: italic;
+    }
+
+    .hist-chip {
+      padding: 3px 6px;
+      font-size: 10.5px;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+      font-weight: 600;
+      letter-spacing: 0.03em;
+      border-radius: 4px;
+      border: 1px solid rgba(190, 216, 210, 0.2);
+      background: rgba(255, 255, 255, 0.05);
+      color: var(--ink);
+      cursor: pointer;
+      line-height: 1.2;
+      flex: 0 0 auto;
+      min-width: unset;
+      transition: all 0.15s ease;
+      display: inline-flex;
+      flex-direction: row;
+      align-items: center;
+      justify-content: center;
+      gap: 3px;
+      white-space: nowrap;
+    }
+
+    .hist-chip:hover {
+      background: rgba(255, 140, 26, 0.25);
+      border-color: var(--accent);
+      transform: translateY(-1px);
+    }
+
+    .hist-chip.active {
+      background: rgba(255, 140, 26, 0.35);
+      border-color: var(--accent);
+      color: #fff;
+      box-shadow: 0 0 8px rgba(255, 140, 26, 0.4);
+    }
+
+    .hist-chip.hist-start {
+      background: rgba(111, 227, 198, 0.12);
+      border-color: rgba(111, 227, 198, 0.3);
+      color: var(--cyan);
+    }
+    .hist-chip.hist-start:hover {
+      background: rgba(111, 227, 198, 0.25);
+      border-color: var(--cyan);
+    }
+
+    .hist-chip[data-face="U"] { border-left: 3px solid #f0f0f0; }
+    .hist-chip[data-face="D"] { border-left: 3px solid #ffd500; }
+    .hist-chip[data-face="F"] { border-left: 3px solid #00d084; }
+    .hist-chip[data-face="B"] { border-left: 3px solid #0080ff; }
+    .hist-chip[data-face="R"] { border-left: 3px solid #ff4d4f; }
+    .hist-chip[data-face="L"] { border-left: 3px solid #ff9900; }
+    .hist-chip[data-face="M"] { border-left: 3px solid #ff8c1a; }
+    .hist-chip[data-face="E"] { border-left: 3px solid #ffd500; }
+    .hist-chip[data-face="S"] { border-left: 3px solid #00d084; }
+
+    .grid-6 { display: grid; grid-template-columns: repeat(6, 1fr); gap: 4px; width: 100%; }
+    .grid-6 button { padding: 5px 2px; font-size: 11px; }
+    .grid-4 { display: grid; grid-template-columns: repeat(4, 1fr); gap: 5px; width: 100%; }
+    .grid-4 button { padding: 6px 2px; font-size: 10.5px; letter-spacing: 0.02em; gap: 3px; }
+    .grid-3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 5px; width: 100%; }
+    .grid-3 button { padding: 6px 4px; font-size: 11px; gap: 4px; }
+    .grid-2 { display: grid; grid-template-columns: repeat(2, 1fr); gap: 5px; width: 100%; }
+
+    .btn-icon-sub {
+      font-size: 11px;
+      line-height: 1;
+      display: inline-block;
+      flex-shrink: 0;
+      opacity: 0.9;
+    }
+
+    button {
+      font-family: inherit;
+      background: rgba(255, 255, 255, 0.05);
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      color: var(--ink);
+      padding: 7px 0;
+      font-size: 11px;
+      letter-spacing: 0.05em;
+      cursor: pointer;
+      transition: all 0.15s ease;
+      display: inline-flex;
+      flex-direction: row;
+      align-items: center;
+      justify-content: center;
+      gap: 3px;
+      position: relative;
+      min-width: 0;
+      white-space: nowrap;
+    }
+
+    button:hover {
+      background: rgba(111, 227, 198, 0.15);
+      border-color: var(--cyan);
+      color: #fff;
+    }
+
+    button:active { transform: translateY(1px); }
+
+    button.active {
+      background: rgba(111, 227, 198, 0.22);
+      border-color: var(--cyan);
+      color: var(--cyan);
+      font-weight: 600;
+    }
+
+    button:disabled,
+    button[disabled] {
+      opacity: 0.38;
+      cursor: not-allowed;
+      pointer-events: none;
+      border-color: var(--line) !important;
+      background: rgba(0, 0, 0, 0.2) !important;
+      color: var(--muted) !important;
+      box-shadow: none !important;
+      transform: none !important;
+    }
+
+    .move-btn {
+      height: 32px;
+      font-weight: 600;
+      display: inline-flex;
+      flex-direction: row;
+      align-items: center;
+      justify-content: center;
+      gap: 2px;
+    }
+    .move-btn::before {
+      content: "";
+      position: absolute;
+      top: 0;
+      left: 6px;
+      right: 6px;
+      height: 2px;
+      border-radius: 0 0 2px 2px;
+      opacity: 0.8;
+    }
+
+    .move-btn[data-face="U"]::before { background: #f0f0f0; }
+    .move-btn[data-face="D"]::before { background: #ffd500; }
+    .move-btn[data-face="F"]::before { background: #00d084; }
+    .move-btn[data-face="B"]::before { background: #0080ff; }
+    .move-btn[data-face="R"]::before { background: #ff4d4f; }
+    .move-btn[data-face="L"]::before { background: #ff9900; }
+
+    .slider-row {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      width: 100%;
+      font-size: 11px;
+      color: var(--muted);
+    }
+
+    .slider-row input[type="range"] {
+      flex: 1;
+      accent-color: var(--cyan);
+      cursor: pointer;
+    }
+
+    .toggle-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      width: 100%;
+      font-size: 11px;
+      color: var(--muted);
+    }
+
+    .toggle-row input[type="checkbox"] {
+      accent-color: var(--cyan);
+      cursor: pointer;
+      width: 15px;
+      height: 15px;
+    }
+
+    /* Modern Toggle Switch */
+    .toggle-switch {
+      position: relative;
+      display: inline-block;
+      width: 32px;
+      height: 18px;
+      flex-shrink: 0;
+    }
+    .toggle-switch input {
+      opacity: 0;
+      width: 0;
+      height: 0;
+    }
+    .toggle-slider {
+      position: absolute;
+      cursor: pointer;
+      inset: 0;
+      background: rgba(255, 255, 255, 0.12);
+      border: 1px solid var(--line);
+      border-radius: 18px;
+      transition: all 0.2s ease;
+    }
+    .toggle-slider:before {
+      position: absolute;
+      content: "";
+      height: 12px;
+      width: 12px;
+      left: 2px;
+      bottom: 2px;
+      background: var(--muted);
+      border-radius: 50%;
+      transition: all 0.2s ease;
+    }
+    .toggle-switch input:checked + .toggle-slider {
+      background: rgba(111, 227, 198, 0.3);
+      border-color: var(--cyan);
+    }
+    .toggle-switch input:checked + .toggle-slider:before {
+      transform: translateX(14px);
+      background: var(--cyan);
+      box-shadow: 0 0 6px var(--cyan);
+    }
+
+    .color-blind-legend {
+      display: none;
+      width: 100%;
+      margin-top: 5px;
+      font-size: 10.5px;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+      color: var(--muted);
+      justify-content: space-between;
+      padding: 3px 6px;
+      background: rgba(0, 0, 0, 0.25);
+      border-radius: 6px;
+      border: 1px solid rgba(190, 216, 210, 0.15);
+    }
+    body.color-blind-mode .color-blind-legend {
+      display: flex;
+    }
+
+    /* Move buttons, circle buttons, and history chips color blind symbols (placed on the right of text) */
+    body.color-blind-mode .move-btn[data-face="U"]::after { content: "○"; font-size: 8.5px; opacity: 0.95; margin-left: 2px; color: #f5f5f5; }
+    body.color-blind-mode .move-btn[data-face="D"]::after { content: "●"; font-size: 8.5px; opacity: 0.95; margin-left: 2px; color: #ffd500; }
+    body.color-blind-mode .move-btn[data-face="F"]::after { content: "✚"; font-size: 8.5px; opacity: 0.95; margin-left: 2px; color: #00d084; }
+    body.color-blind-mode .move-btn[data-face="B"]::after { content: "△"; font-size: 8.5px; opacity: 0.95; margin-left: 2px; color: #0080ff; }
+    body.color-blind-mode .move-btn[data-face="R"]::after { content: "□"; font-size: 8.5px; opacity: 0.95; margin-left: 2px; color: #ff4d4f; }
+    body.color-blind-mode .move-btn[data-face="L"]::after { content: "★"; font-size: 8.5px; opacity: 0.95; margin-left: 2px; color: #ff9900; }
+
+    body.color-blind-mode .circle-rot-btn[data-face="U"]::after { content: " ○"; font-size: 8px; opacity: 0.95; color: #f5f5f5; }
+    body.color-blind-mode .circle-rot-btn[data-face="D"]::after { content: " ●"; font-size: 8px; opacity: 0.95; color: #ffd500; }
+    body.color-blind-mode .circle-rot-btn[data-face="F"]::after { content: " ✚"; font-size: 8px; opacity: 0.95; color: #00d084; }
+    body.color-blind-mode .circle-rot-btn[data-face="B"]::after { content: " △"; font-size: 8px; opacity: 0.95; color: #0080ff; }
+    body.color-blind-mode .circle-rot-btn[data-face="R"]::after { content: " □"; font-size: 8px; opacity: 0.95; color: #ff4d4f; }
+    body.color-blind-mode .circle-rot-btn[data-face="L"]::after { content: " ★"; font-size: 8px; opacity: 0.95; color: #ff9900; }
+    body.color-blind-mode .circle-rot-btn[data-face="2U"]::after { content: " ○"; font-size: 8px; opacity: 0.95; color: #f0f0f0; }
+    body.color-blind-mode .circle-rot-btn[data-face="2D"]::after { content: " ●"; font-size: 8px; opacity: 0.95; color: #ffd500; }
+    body.color-blind-mode .circle-rot-btn[data-face="2F"]::after { content: " ✚"; font-size: 8px; opacity: 0.95; color: #00d084; }
+    body.color-blind-mode .circle-rot-btn[data-face="2B"]::after { content: " △"; font-size: 8px; opacity: 0.95; color: #0080ff; }
+    body.color-blind-mode .circle-rot-btn[data-face="2R"]::after { content: " □"; font-size: 8px; opacity: 0.95; color: #ff4d4f; }
+    body.color-blind-mode .circle-rot-btn[data-face="2L"]::after { content: " ★"; font-size: 8px; opacity: 0.95; color: #ff9900; }
+
+    body.color-blind-mode .hist-chip[data-face="U"]::after { content: "○"; font-size: 8px; opacity: 0.95; margin-left: 3px; color: #f5f5f5; }
+    body.color-blind-mode .hist-chip[data-face="D"]::after { content: "●"; font-size: 8px; opacity: 0.95; margin-left: 3px; color: #ffd500; }
+    body.color-blind-mode .hist-chip[data-face="F"]::after { content: "✚"; font-size: 8px; opacity: 0.95; margin-left: 3px; color: #00d084; }
+    body.color-blind-mode .hist-chip[data-face="B"]::after { content: "△"; font-size: 8px; opacity: 0.95; margin-left: 3px; color: #0080ff; }
+    body.color-blind-mode .hist-chip[data-face="R"]::after { content: "□"; font-size: 8px; opacity: 0.95; margin-left: 3px; color: #ff4d4f; }
+    body.color-blind-mode .hist-chip[data-face="L"]::after { content: "★"; font-size: 8px; opacity: 0.95; margin-left: 3px; color: #ff9900; }
+
+
+    #ticker {
+      position: fixed;
+      top: calc(50% - 20px);
+      right: 24px;
+      transform: translateY(-50%);
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+      font-size: 13px;
+      font-weight: 700;
+      letter-spacing: 0.15em;
+      color: var(--cyan);
+      background: rgba(14, 24, 22, 0.9);
+      border: 1px solid rgba(111, 227, 198, 0.4);
+      padding: 5px 16px;
+      border-radius: 20px;
+      backdrop-filter: blur(10px);
+      pointer-events: none;
+      z-index: 25;
+      text-shadow: 0 0 10px rgba(111, 227, 198, 0.5);
+      box-shadow: 0 4px 16px rgba(0, 0, 0, 0.5);
+    }
+
+    #hint {
+      position: fixed;
+      top: calc(50% - 20px);
+      left: 70%;
+      transform: translateX(-50%);
+      font-size: 11px;
+      letter-spacing: 0.06em;
+      color: var(--muted);
+      pointer-events: none;
+      z-index: 10;
+      opacity: 0.85;
+      text-shadow: 0 1px 4px rgba(0, 0, 0, 0.8);
+      white-space: nowrap;
+    }
+
+    /* Circle Rotation Buttons Overlay */
+    #circleControlsOverlay {
+      position: fixed;
+      inset: 0;
+      pointer-events: none;
+      z-index: 15;
+    }
+
+    .circle-rot-btn {
+      position: absolute;
+      transform: translate(-50%, -50%);
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      min-width: 20px;
+      height: 20px;
+      padding: 0 4px;
+      border-radius: 10px;
+      background: rgba(16, 26, 24, 0.92);
+      border: 1.5px solid var(--line);
+      color: var(--ink);
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+      font-size: 11px;
+      font-weight: 700;
+      line-height: 1;
+      cursor: pointer;
+      pointer-events: auto;
+      backdrop-filter: blur(8px);
+      -webkit-backdrop-filter: blur(8px);
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.5);
+      transition: transform 0.15s ease, box-shadow 0.15s ease, background-color 0.15s ease;
+      z-index: 16;
+      user-select: none;
+      white-space: nowrap;
+    }
+
+    /* Middle-ring pills are smaller: those rings sit only a few px apart */
+    .circle-rot-btn.mid-ring {
+      min-width: 16px;
+      height: 16px;
+      padding: 0 3px;
+      border-radius: 8px;
+      font-size: 9.5px;
+    }
+
+    .circle-rot-btn:hover {
+      transform: translate(-50%, -50%) scale(1.16);
+      box-shadow: 0 4px 14px rgba(0, 0, 0, 0.7);
+    }
+
+    .circle-rot-btn:active {
+      transform: translate(-50%, -50%) scale(0.95);
+    }
+
+    .circle-rot-btn[data-face="U"] { border-color: #f0f0f0; color: #f0f0f0; }
+    .circle-rot-btn[data-face="D"] { border-color: #ffd500; color: #ffd500; }
+    .circle-rot-btn[data-face="F"] { border-color: #00d084; color: #00d084; }
+    .circle-rot-btn[data-face="B"] { border-color: #0080ff; color: #0080ff; }
+    .circle-rot-btn[data-face="R"] { border-color: #ff4d4f; color: #ff4d4f; }
+    .circle-rot-btn[data-face="L"] { border-color: #ff9900; color: #ff9900; }
+    .circle-rot-btn[data-face="2U"] { border-color: #f0f0f0; color: #f0f0f0; border-style: dashed; }
+    .circle-rot-btn[data-face="2D"] { border-color: #ffd500; color: #ffd500; border-style: dashed; }
+    .circle-rot-btn[data-face="2F"] { border-color: #00d084; color: #00d084; border-style: dashed; }
+    .circle-rot-btn[data-face="2B"] { border-color: #0080ff; color: #0080ff; border-style: dashed; }
+    .circle-rot-btn[data-face="2R"] { border-color: #ff4d4f; color: #ff4d4f; border-style: dashed; }
+    .circle-rot-btn[data-face="2L"] { border-color: #ff9900; color: #ff9900; border-style: dashed; }
+
+    .circle-rot-btn[data-face="U"]:hover { background: rgba(240, 240, 240, 0.25); box-shadow: 0 0 10px rgba(240, 240, 240, 0.5); }
+    .circle-rot-btn[data-face="D"]:hover { background: rgba(255, 213, 0, 0.25); box-shadow: 0 0 10px rgba(255, 213, 0, 0.5); }
+    .circle-rot-btn[data-face="F"]:hover { background: rgba(0, 208, 132, 0.25); box-shadow: 0 0 10px rgba(0, 208, 132, 0.5); }
+    .circle-rot-btn[data-face="B"]:hover { background: rgba(0, 128, 255, 0.25); box-shadow: 0 0 10px rgba(0, 128, 255, 0.5); }
+    .circle-rot-btn[data-face="R"]:hover { background: rgba(255, 77, 79, 0.25); box-shadow: 0 0 10px rgba(255, 77, 79, 0.5); }
+    .circle-rot-btn[data-face="L"]:hover { background: rgba(255, 153, 0, 0.25); box-shadow: 0 0 10px rgba(255, 153, 0, 0.5); }
+    .circle-rot-btn[data-face="2U"]:hover { background: rgba(240, 240, 240, 0.25); box-shadow: 0 0 10px rgba(240, 240, 240, 0.5); }
+    .circle-rot-btn[data-face="2D"]:hover { background: rgba(255, 213, 0, 0.25); box-shadow: 0 0 10px rgba(255, 213, 0, 0.5); }
+    .circle-rot-btn[data-face="2F"]:hover { background: rgba(0, 208, 132, 0.25); box-shadow: 0 0 10px rgba(0, 208, 132, 0.5); }
+    .circle-rot-btn[data-face="2B"]:hover { background: rgba(0, 128, 255, 0.25); box-shadow: 0 0 10px rgba(0, 128, 255, 0.5); }
+    .circle-rot-btn[data-face="2R"]:hover { background: rgba(255, 77, 79, 0.25); box-shadow: 0 0 10px rgba(255, 77, 79, 0.5); }
+    .circle-rot-btn[data-face="2L"]:hover { background: rgba(255, 153, 0, 0.25); box-shadow: 0 0 10px rgba(255, 153, 0, 0.5); }
+
+    /* 3D Cube Rotation Controls Widget (Next to Cube) */
+    .cube-controls-widget {
+      display: none !important;
+      position: fixed;
+      left: calc(50% + 180px);
+      top: 76%;
+      transform: translateY(-50%);
+      z-index: 20;
+      background: rgba(14, 22, 20, 0.9);
+      border: 1px solid rgba(111, 227, 198, 0.25);
+      border-radius: 12px;
+      padding: 8px 10px;
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
+      box-shadow: 0 8px 24px rgba(0, 0, 0, 0.55), 0 0 12px rgba(111, 227, 198, 0.08);
+      flex-direction: column;
+      gap: 6px;
+      transition: top 0.3s ease, opacity 0.25s ease, transform 0.25s ease;
+      user-select: none;
+    }
+
+    .cube-controls-widget.view-cube {
+      top: 50%;
+    }
+
+    .cube-controls-widget.view-circles {
+      display: none !important;
+    }
+
+    .cube-controls-widget-title {
+      font-size: 10px;
+      font-weight: 700;
+      letter-spacing: 0.08em;
+      color: var(--muted);
+      text-transform: uppercase;
+      display: flex;
+      align-items: center;
+      gap: 5px;
+      padding-bottom: 2px;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+    }
+
+    .cube-controls-btn-group {
+      display: flex;
+      flex-direction: column;
+      gap: 5px;
+    }
+
+    .cube-ctrl-btn {
+      font-family: inherit;
+      background: rgba(255, 255, 255, 0.04);
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      color: var(--ink);
+      padding: 6px 10px;
+      font-size: 11px;
+      font-weight: 600;
+      letter-spacing: 0.03em;
+      cursor: pointer;
+      transition: all 0.15s ease;
+      display: flex;
+      flex-direction: row;
+      align-items: center;
+      gap: 7px;
+      white-space: nowrap;
+    }
+
+    .cube-ctrl-btn:hover {
+      background: rgba(111, 227, 198, 0.14);
+      border-color: var(--cyan);
+      color: #fff;
+      transform: translateY(-1px);
+    }
+
+    .cube-ctrl-btn:active {
+      transform: translateY(1px);
+    }
+
+    .cube-ctrl-btn.active {
+      background: rgba(111, 227, 198, 0.22);
+      border-color: var(--cyan);
+      color: var(--cyan);
+      box-shadow: 0 0 10px rgba(111, 227, 198, 0.35);
+    }
+
+    .cube-ctrl-btn.active .ctrl-icon {
+      filter: drop-shadow(0 0 5px var(--cyan));
+    }
+
+    @media (max-width: 1024px) {
+      .cube-controls-widget {
+        left: 50%;
+        transform: translateX(-50%);
+        top: auto;
+        bottom: 80px;
+        flex-direction: row;
+        align-items: center;
+      }
+      .cube-controls-widget-title {
+        border-bottom: none;
+        border-right: 1px solid rgba(255, 255, 255, 0.08);
+        padding-right: 8px;
+        padding-bottom: 0;
+      }
+      .cube-controls-btn-group {
+        flex-direction: row;
+      }
+    }
+  </style>
+  <script type="importmap">
+  {
+    "imports": {
+      "three": "https://cdn.jsdelivr.net/npm/three@0.169.0/build/three.module.js",
+      "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.169.0/examples/jsm/"
+    }
+  }
+  </script>
+</head>
+<body>
+  <div id="app"></div>
+
+  <!-- Circle Rotation Buttons Overlay (Directly on Circle Lines) -->
+  <div id="circleControlsOverlay">
+    <!-- Top Circle: U (outer), 2U, 2D (middle) & D (inner) -->
+    <button class="circle-rot-btn" id="btn-rot-U-ccw" data-face="U" data-turns="-1" title="逆时针旋转顶层外环 U'">U'</button>
+    <button class="circle-rot-btn" id="btn-rot-U-cw" data-face="U" data-turns="1" title="顺时针旋转顶层外环 U">U</button>
+    <button class="circle-rot-btn" id="btn-rot-D-ccw" data-face="D" data-turns="-1" title="逆时针旋转底层内环 D'">D'</button>
+    <button class="circle-rot-btn" id="btn-rot-D-cw" data-face="D" data-turns="1" title="顺时针旋转底层内环 D">D</button>
+    <button class="circle-rot-btn mid-ring" id="btn-rot-2U-ccw" data-face="2U" data-turns="-1" title="逆时针旋转顶部第二层环 2U'">2U'</button>
+    <button class="circle-rot-btn mid-ring" id="btn-rot-2U-cw" data-face="2U" data-turns="1" title="顺时针旋转顶部第二层环 2U">2U</button>
+    <button class="circle-rot-btn mid-ring" id="btn-rot-2D-ccw" data-face="2D" data-turns="-1" title="逆时针旋转底部第二层环 2D'">2D'</button>
+    <button class="circle-rot-btn mid-ring" id="btn-rot-2D-cw" data-face="2D" data-turns="1" title="顺时针旋转底部第二层环 2D">2D</button>
+
+    <!-- Bottom-Left Circle: F (outer), 2F, 2B (middle) & B (inner) -->
+    <button class="circle-rot-btn" id="btn-rot-F-ccw" data-face="F" data-turns="-1" title="逆时针旋转前层外环 F'">F'</button>
+    <button class="circle-rot-btn" id="btn-rot-F-cw" data-face="F" data-turns="1" title="顺时针旋转前层外环 F">F</button>
+    <button class="circle-rot-btn" id="btn-rot-B-ccw" data-face="B" data-turns="-1" title="逆时针旋转后层内环 B'">B'</button>
+    <button class="circle-rot-btn" id="btn-rot-B-cw" data-face="B" data-turns="1" title="顺时针旋转后层内环 B">B</button>
+    <button class="circle-rot-btn mid-ring" id="btn-rot-2F-ccw" data-face="2F" data-turns="-1" title="逆时针旋转前部第二层环 2F'">2F'</button>
+    <button class="circle-rot-btn mid-ring" id="btn-rot-2F-cw" data-face="2F" data-turns="1" title="顺时针旋转前部第二层环 2F">2F</button>
+    <button class="circle-rot-btn mid-ring" id="btn-rot-2B-ccw" data-face="2B" data-turns="-1" title="逆时针旋转后部第二层环 2B'">2B'</button>
+    <button class="circle-rot-btn mid-ring" id="btn-rot-2B-cw" data-face="2B" data-turns="1" title="顺时针旋转后部第二层环 2B">2B</button>
+
+    <!-- Bottom-Right Circle: R (outer), 2R, 2L (middle) & L (inner) -->
+    <button class="circle-rot-btn" id="btn-rot-R-ccw" data-face="R" data-turns="-1" title="逆时针旋转右层外环 R'">R'</button>
+    <button class="circle-rot-btn" id="btn-rot-R-cw" data-face="R" data-turns="1" title="顺时针旋转右层外环 R">R</button>
+    <button class="circle-rot-btn" id="btn-rot-L-ccw" data-face="L" data-turns="-1" title="逆时针旋转左层内环 L'">L'</button>
+    <button class="circle-rot-btn" id="btn-rot-L-cw" data-face="L" data-turns="1" title="顺时针旋转左层内环 L">L</button>
+    <button class="circle-rot-btn mid-ring" id="btn-rot-2R-ccw" data-face="2R" data-turns="-1" title="逆时针旋转右部第二层环 2R'">2R'</button>
+    <button class="circle-rot-btn mid-ring" id="btn-rot-2R-cw" data-face="2R" data-turns="1" title="顺时针旋转右部第二层环 2R">2R</button>
+    <button class="circle-rot-btn mid-ring" id="btn-rot-2L-ccw" data-face="2L" data-turns="-1" title="逆时针旋转左部第二层环 2L'">2L'</button>
+    <button class="circle-rot-btn mid-ring" id="btn-rot-2L-cw" data-face="2L" data-turns="1" title="顺时针旋转左部第二层环 2L">2L</button>
+  </div>
+
+  <!-- 3D Cube Rotation Controls Visibility Widget (Next to Cube) -->
+  <div id="cubeControlsWidget" class="cube-controls-widget" title="魔方旋转按钮控制模式 · Cube Rotation Controls Mode">
+    <div class="cube-controls-widget-title">
+      <span class="icon">🎮</span> 控制器 · Controls
+    </div>
+    <div class="cube-controls-btn-group">
+      <button id="btnCtrlHide" class="cube-ctrl-btn" title="隐藏所有旋转图标 · Hide all rotation controller icons">
+        <span class="ctrl-icon">🙈</span>
+        <span class="ctrl-label">隐藏 · Hide</span>
+      </button>
+      <button id="btnCtrlCorner" class="cube-ctrl-btn" title="角块控制模式 (已恢复) · Corner Piece Controls">
+        <span class="ctrl-icon">📐</span>
+        <span class="ctrl-label">角块 · Corner</span>
+      </button>
+      <button id="btnCtrlLevel" class="cube-ctrl-btn" title="边块控制模式 · Edge Controls">
+        <span class="ctrl-icon">↔️</span>
+        <span class="ctrl-label">边块 · Edge</span>
+      </button>
+      <button id="btnCtrlFace" class="cube-ctrl-btn active" title="面旋转控制模式 · Face Controls">
+        <span class="ctrl-icon">🔄</span>
+        <span class="ctrl-label">面转 · Face</span>
+      </button>
+    </div>
+  </div>
+
+  <!-- Quadrant Dividers & Tags -->
+
+  <div class="quadrant-tag tag-top-left">
+    <span class="dot-indicator"></span>
+    <span>2D 三环投影 · 2D Circles</span>
+  </div>
+
+  <div class="quadrant-tag tag-top-right">
+    <span class="dot-indicator green"></span>
+    <span>3D 实体魔方 · 3D Cube</span>
+  </div>
+
+  <header id="title">
+    <h1>换个角度，解开魔方</h1>
+    <p>3D 四阶实体魔方与 2D 三环系统投影实时双向联动 · Rubik's Circles 4x4</p>
+  </header>
+
+  <a id="btnBackHub" href="./index.html" class="btn-hub" title="返回魔方大厅选关 · Return to Cube Dimension Picker">
+    <span>◫</span>
+    <span>魔方大厅 · Hub</span>
+  </a>
+
+  <button id="toggleMethodsFloat">📖 Methods</button>
+
+  <div id="methods-panel" class="panel">
+    <div class="panel-header">
+      <div class="panel-title">
+        <span>📖</span> 解法步骤 · Methods
+      </div>
+      <button id="toggleMethods" class="btn-icon" title="收起/展开面板">−</button>
+    </div>
+
+    <!-- Scramble Status Banner -->
+    <div id="methodScrambleStatus" class="method-scramble-status active">
+      <span class="status-indicator"></span>
+      <span id="scrambleStatusText">🎉 当前魔方已处于完全复原状态 · Cube Solved!</span>
+    </div>
+
+    <!-- Update Solution Button -->
+    <button id="btnUpdateSolution" class="btn-update-solution" title="根据当前魔方状态实时计算并更新所有解法步骤">
+      <span class="btn-update-icon">⚡</span>
+      <span class="btn-update-label">更新解法 · Update Solution</span>
+    </button>
+
+    <!-- Tabs on Top -->
+    <div class="tabs" id="methodTabs">
+      <button class="tab active" data-tab="reduction">Reduction</button>
+      <button class="tab" data-tab="yau">Yau</button>
+      <button class="tab" data-tab="hoya">Hoya</button>
+      <button class="tab" data-tab="k4">K4</button>
+    </div>
+
+    <!-- Reduction: steps are rendered from the live cube at load -->
+    <div class="tab-content active" id="content-reduction"></div>
+    <!-- Yau: steps are rendered from the live cube at load -->
+    <div class="tab-content" id="content-yau"></div>
+    <!-- Hoya: steps are rendered from the live cube at load -->
+    <div class="tab-content" id="content-hoya"></div>
+    <!-- K4: steps are rendered from the live cube at load -->
+    <div class="tab-content" id="content-k4"></div>
+  </div>
+
+  <div id="hud">
+    <div class="panel">
+      <div class="hud-grid">
+        <!-- Col 1: Moves & History -->
+        <div class="hud-col">
+          <div class="row label">Moves · 旋转指令</div>
+          <div class="row grid-4" id="moves"></div>
+          <div class="row grid-6" id="sliceMoves" style="margin-top: 4px; margin-bottom: 8px;"></div>
+
+          <div class="row label between" style="margin-top: 4px;">
+            <span>History · 历史步骤</span>
+            <span id="historyCount" class="history-count">0 moves</span>
+          </div>
+          <div id="historyBox" class="history-box">
+            <div class="history-empty">暂无步骤 · No moves yet</div>
+          </div>
+        </div>
+
+        <!-- Col 2: Actions, View, Controls & Speed -->
+        <div class="hud-col">
+          <div class="row label">Actions · 快捷操作</div>
+          <div class="row grid-4">
+            <button data-act="scramble" title="随机打乱魔方"><span class="btn-icon-sub">🔀</span><span>Scramble</span></button>
+            <button data-act="solve" title="按公式分步还原"><span class="btn-icon-sub">✨</span><span>Solve</span></button>
+            <button data-act="undo" title="撤回上一步"><span class="btn-icon-sub">↩</span><span>Undo</span></button>
+            <button data-act="reset" title="复位到完全还原状态"><span class="btn-icon-sub">↺</span><span>Reset</span></button>
+          </div>
+
+          <div class="row label" style="margin-top: 4px;">View & Controls · 视图与控制</div>
+          <div class="row grid-3" id="view-mode">
+            <button data-view="both" class="active"><span class="btn-icon-sub">◫</span><span>Both</span></button>
+            <button data-view="cube"><span class="btn-icon-sub">🧊</span><span>Cube</span></button>
+            <button data-view="circles"><span class="btn-icon-sub">◎</span><span>Circles</span></button>
+          </div>
+          <div class="row grid-4" style="margin-bottom: 8px;">
+            <button id="hudBtnCtrlHide" title="隐藏所有旋转图标"><span class="btn-icon-sub">⊘</span><span>Hide</span></button>
+            <button id="hudBtnCtrlCorner" title="角块控制 (16按键)"><span class="btn-icon-sub">◸</span><span>Corner</span></button>
+            <button id="hudBtnCtrlLevel" title="边块控制 (8按键)"><span class="btn-icon-sub">⬒</span><span>Edge</span></button>
+            <button id="hudBtnCtrlFace" class="active" title="面中心旋转控制 (顺/逆时针)"><span class="btn-icon-sub">▣</span><span>Face</span></button>
+          </div>
+
+          <div class="row label" style="margin-top: 4px;">Settings · 速度与视角</div>
+          <div class="row" style="display: flex; gap: 10px; align-items: center; margin-bottom: 0;">
+            <div class="slider-row" style="flex: 1;">
+              <input type="range" id="speed" min="0.25" max="3" step="0.25" value="1" />
+              <span id="speed-val" style="min-width: 32px; text-align: right;">1.0×</span>
+            </div>
+            <div class="toggle-row" style="flex: 1; justify-content: flex-end; gap: 8px;">
+              <span style="font-size: 11px;">Auto-rotate</span>
+              <input type="checkbox" id="auto-rotate" />
+            </div>
+          </div>
+
+          <div class="row" style="display: flex; flex-direction: column; margin-top: 6px; margin-bottom: 0;">
+            <div class="toggle-row" style="justify-content: space-between; width: 100%;">
+              <span style="display: inline-flex; align-items: center; gap: 6px; font-size: 11px;">
+                <span style="font-size: 13px;">👁️</span>
+                <span>色弱模式 · Color Blind Mode</span>
+              </span>
+              <label class="toggle-switch" title="开启/关闭色弱辅助符号 · Toggle Color Blind Symbols">
+                <input type="checkbox" id="color-blind-toggle" />
+                <span class="toggle-slider"></span>
+              </label>
+            </div>
+            <div class="color-blind-legend" id="colorBlindLegend" title="各面对应符号与高对比色 · Face Symbols & High-Contrast Colors">
+              <span style="background: #f5f5f5; color: #111111; padding: 2px 6px; border-radius: 4px; font-weight: 700; box-shadow: 0 1px 3px rgba(0,0,0,0.3);">U ○</span>
+              <span style="background: #ffd500; color: #111111; padding: 2px 6px; border-radius: 4px; font-weight: 700; box-shadow: 0 1px 3px rgba(0,0,0,0.3);">D ●</span>
+              <span style="background: #1fa04a; color: #ffffff; padding: 2px 6px; border-radius: 4px; font-weight: 700; box-shadow: 0 1px 3px rgba(0,0,0,0.3);">F ✚</span>
+              <span style="background: #1663c7; color: #ffffff; padding: 2px 6px; border-radius: 4px; font-weight: 700; box-shadow: 0 1px 3px rgba(0,0,0,0.3);">B △</span>
+              <span style="background: #d6262b; color: #ffffff; padding: 2px 6px; border-radius: 4px; font-weight: 700; box-shadow: 0 1px 3px rgba(0,0,0,0.3);">R □</span>
+              <span style="background: #e07a20; color: #ffffff; padding: 2px 6px; border-radius: 4px; font-weight: 700; box-shadow: 0 1px 3px rgba(0,0,0,0.3);">L ★</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div id="ticker">READY</div>
+  <div id="hint">拖拽旋转 3D 视角 · 滚轮缩放 · 双视角实时联动 · W+面键 = 宽转</div>
+
+  <script type="module">
+    import * as THREE from 'three';
+    import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+
+    // ------------------------------------------------------------- Constants & Configuration
+    const THEME = {
+      background: 0x22302d,
+      cubieBody: 0x141e1c,
+      ringInactive: 0x8fa8a1,
+      ringActive: 0xff8c1a,
+    };
+
+    const COLORS = {
+      U: 0xf5f5f5, // White
+      D: 0xf7d91a, // Yellow
+      F: 0x1fa04a, // Green
+      B: 0x1663c7, // Blue
+      R: 0xd6262b, // Red
+      L: 0xe07a20, // Orange
+    };
+
+    const FACE_HEX_STRINGS = {
+      U: '#f5f5f5',
+      D: '#f7d91a',
+      F: '#1fa04a',
+      B: '#1663c7',
+      R: '#d6262b',
+      L: '#e07a20',
+    };
+
+    const OPPOSITE_FACES = {
+      U: 'D',
+      D: 'U',
+      F: 'B',
+      B: 'F',
+      R: 'L',
+      L: 'R',
+    };
+
+    const FACE_SYMBOLS = {
+      U: 'circle',
+      D: 'dot',
+      F: 'cross',
+      B: 'triangle',
+      R: 'square',
+      L: 'star',
+    };
+
+    // Maximum contrast symbol colors:
+    // Light backgrounds (White, Yellow) -> Black symbol (#111111)
+    // Dark / saturated backgrounds (Green, Blue, Red, Orange) -> White symbol (#ffffff)
+    const SYMBOL_COLORS = {
+      U: '#111111',
+      D: '#111111',
+      F: '#ffffff',
+      B: '#ffffff',
+      R: '#ffffff',
+      L: '#ffffff',
+    };
+
+    const FACES = ['U', 'D', 'F', 'B', 'R', 'L'];
+
+    const NORMALS = {
+      U: new THREE.Vector3(0, 1, 0),
+      D: new THREE.Vector3(0, -1, 0),
+      F: new THREE.Vector3(0, 0, 1),
+      B: new THREE.Vector3(0, 0, -1),
+      R: new THREE.Vector3(1, 0, 0),
+      L: new THREE.Vector3(-1, 0, 0),
+    };
+
+    function faceOfNormal(v) {
+      for (const f of FACES) {
+        if (NORMALS[f].equals(v)) return f;
+      }
+      return null;
+    }
+
+    // ------------------------------------------------------------- Cube order
+    // Everything size-specific derives from N. Lattice coordinates run from
+    // -EXT to +EXT in steps of 2, so even and odd cubes share one integer
+    // scheme and a quarter turn maps lattice points exactly onto lattice points.
+    const N = 4;
+    const EXT = N - 1;
+    const LAYER_COORDS = Array.from({ length: N }, (_, i) => -EXT + 2 * i);
+    const PITCH = 1.02;                    // centre-to-centre cubie distance, world units
+    const LATTICE_TO_WORLD = PITCH / 2;
+    const SCRAMBLE_LENGTH = 40;  // WCA random-move length for this size
+
+    // Geometry of the 2D three-circle system, one concentric ring per layer.
+    // delta and beadSize were chosen numerically: the widest ring spacing at
+    // which no two stickers crowd each other, with beads at cubex3's 0.76
+    // bead-to-gap ratio.
+    const RING_CONFIG = {
+      D: 0.82,       // distance from origin to circle centers
+      r0: 1.0,       // radius of the middle of each ring family
+      delta: 0.098,  // spacing between concentric rings
+      beadSize: 0.074,
+      frustum: 2.38,
+    };
+
+    // Keyed by a layer's lattice coordinate along its axis.
+    const RING_RADII = {};
+    for (const c of LAYER_COORDS) RING_RADII[c] = RING_CONFIG.r0 + (c / 2) * RING_CONFIG.delta;
+
+    // ------------------------------------------------------------- Layer model
+    // A move key names a face plus the depths it turns, counted from that face:
+    //   R   -> depth 1              2R  -> depth 2 only (one inner slice)
+    //   Rw  -> depths 1-2           3Rw -> depths 1-3   (WCA wide notation)
+    //   M / E / S (odd N only) -> the middle slice, turning with L / D / F.
+    const AXIS_OF_FACE = { U: 'Y', D: 'Y', R: 'X', L: 'X', F: 'Z', B: 'Z' };
+    const POSITIVE_FACE = { X: 'R', Y: 'U', Z: 'F' };
+    const NEGATIVE_FACE = { X: 'L', Y: 'D', Z: 'B' };
+    const MIDDLE_SLICE = { M: 'L', E: 'D', S: 'F' };
+    const MIDDLE_OF_AXIS = { X: 'M', Y: 'E', Z: 'S' };
+    const AXIS_UNIT = {
+      X: new THREE.Vector3(1, 0, 0),
+      Y: new THREE.Vector3(0, 1, 0),
+      Z: new THREE.Vector3(0, 0, 1),
+    };
+
+    const layerSpecCache = new Map();
+    function layerSpec(key) {
+      if (layerSpecCache.has(key)) return layerSpecCache.get(key);
+      let spec = null;
+      if (MIDDLE_SLICE[key]) {
+        if (N % 2 === 1) spec = { face: MIDDLE_SLICE[key], depths: [(N + 1) / 2] };
+      } else {
+        const m = /^([1-9]?)([UDFBRL])(w?)$/.exec(key || '');
+        if (m) {
+          const wide = m[3] === 'w';
+          const n = m[1] ? parseInt(m[1], 10) : (wide ? 2 : 1);
+          if (n >= 1 && n <= N - 1) {
+            spec = { face: m[2], depths: wide ? Array.from({ length: n }, (_, i) => i + 1) : [n] };
+          }
+        }
+      }
+      if (spec) {
+        spec.axis = AXIS_OF_FACE[spec.face];
+        spec.normal = NORMALS[spec.face];
+        spec.sign = spec.normal.dot(AXIS_UNIT[spec.axis]);            // +1 for U/R/F, -1 for D/L/B
+        spec.levels = spec.depths.map((d) => EXT - 2 * (d - 1));       // coord . normal of each layer
+        spec.coords = spec.levels.map((level) => level * spec.sign);   // coord along the positive axis
+      }
+      layerSpecCache.set(key, spec);
+      return spec;
+    }
+
+    function inLayer(spec, coord) {
+      return spec.levels.includes(Math.round(coord.dot(spec.normal)));
+    }
+
+    /** The single-layer key for the layer at lattice coordinate c along axis. */
+    function layerKeyFor(axis, c) {
+      if (c === 0) return MIDDLE_OF_AXIS[axis];
+      const face = c > 0 ? POSITIVE_FACE[axis] : NEGATIVE_FACE[axis];
+      const depth = (EXT - Math.abs(c)) / 2 + 1;
+      return depth === 1 ? face : `${depth}${face}`;
+    }
+
+    /** Which face colour a move's buttons and history chips wear. */
+    function colorFaceOf(key) {
+      if (MIDDLE_SLICE[key]) return key;
+      const spec = layerSpec(key);
+      return spec ? spec.face : key;
+    }
+
+    // Centers of the 3 circle systems:
+    // Y: Top (0, D)
+    // Z: Bottom-Left (-D*sqrt(3)/2, -D*0.5)
+    // X: Bottom-Right (D*sqrt(3)/2, -D*0.5)
+    const RING_CENTERS = {
+      Y: new THREE.Vector2(0, RING_CONFIG.D),
+      Z: new THREE.Vector2(-RING_CONFIG.D * Math.sqrt(3) / 2, -RING_CONFIG.D * 0.5),
+      X: new THREE.Vector2(RING_CONFIG.D * Math.sqrt(3) / 2, -RING_CONFIG.D * 0.5),
+    };
+
+    /** Solve intersection of circle 1 (c1, r1) and circle 2 (c2, r2). Returns [p1, p2] */
+    function circleIntersections(c1, r1, c2, r2) {
+      const dx = c2.x - c1.x;
+      const dy = c2.y - c1.y;
+      const d = Math.hypot(dx, dy);
+      if (d > r1 + r2 || d < Math.abs(r1 - r2) || d < 1e-6) return null;
+      const a = (r1 * r1 - r2 * r2 + d * d) / (2 * d);
+      const h = Math.sqrt(Math.max(0, r1 * r1 - a * a));
+      const xm = c1.x + a * dx / d;
+      const ym = c1.y + a * dy / d;
+      const nx = -dy / d;
+      const ny = dx / d;
+      return [
+        new THREE.Vector2(xm + h * nx, ym + h * ny),
+        new THREE.Vector2(xm - h * nx, ym - h * ny),
+      ];
+    }
+
+    /**
+     * Map (face, pieceCoord) to exact 2D intersection point in the three-ring system.
+     * Face U (Y=+1): Pair (Z, X) upper (center diamond)
+     * Face D (Y=-1): Pair (Z, X) lower (bottom diamond)
+     * Face L (X=-1): Pair (Y, Z) outer top-left
+     * Face R (X=+1): Pair (Y, Z) inner bottom-right
+     * Face B (Z=-1): Pair (Y, X) outer top-right
+     * Face F (Z=+1): Pair (Y, X) inner bottom-left
+     */
+    function calculateRestPosition(face, coord) {
+      let c1, c2, r1, r2, pickBranch;
+      if (face === 'U') {
+        c1 = RING_CENTERS.Z; r1 = RING_RADII[coord.z];
+        c2 = RING_CENTERS.X; r2 = RING_RADII[coord.x];
+        pickBranch = (pts) => pts[0]; // upper
+      } else if (face === 'D') {
+        c1 = RING_CENTERS.Z; r1 = RING_RADII[coord.z];
+        c2 = RING_CENTERS.X; r2 = RING_RADII[coord.x];
+        pickBranch = (pts) => pts[1]; // lower
+      } else if (face === 'L') {
+        c1 = RING_CENTERS.Y; r1 = RING_RADII[coord.y];
+        c2 = RING_CENTERS.Z; r2 = RING_RADII[coord.z];
+        pickBranch = (pts) => (pts[1].x < pts[0].x ? pts[1] : pts[0]); // outer top-left
+      } else if (face === 'R') {
+        c1 = RING_CENTERS.Y; r1 = RING_RADII[coord.y];
+        c2 = RING_CENTERS.Z; r2 = RING_RADII[coord.z];
+        pickBranch = (pts) => (pts[0].x > pts[1].x ? pts[0] : pts[1]); // inner bottom-right
+      } else if (face === 'B') {
+        c1 = RING_CENTERS.Y; r1 = RING_RADII[coord.y];
+        c2 = RING_CENTERS.X; r2 = RING_RADII[coord.x];
+        pickBranch = (pts) => (pts[0].x > pts[1].x ? pts[0] : pts[1]); // outer top-right
+      } else if (face === 'F') {
+        c1 = RING_CENTERS.Y; r1 = RING_RADII[coord.y];
+        c2 = RING_CENTERS.X; r2 = RING_RADII[coord.x];
+        pickBranch = (pts) => (pts[1].x < pts[0].x ? pts[1] : pts[0]); // inner bottom-left
+      }
+
+      const pts = circleIntersections(c1, r1, c2, r2);
+      if (!pts) return new THREE.Vector2(0, 0);
+      return pickBranch(pts);
+    }
+
+    // Where each face's beads rotate about in the 2D view: the fixed centre
+    // sticker on odd cubes, the centroid of the face's beads on even ones.
+    const FACE_CENTERS = {};
+    for (const f of FACES) {
+      const n = NORMALS[f];
+      const axes = ['x', 'y', 'z'];
+      const along = axes.find((k) => n[k] !== 0);
+      const [p, q] = axes.filter((k) => n[k] === 0);
+      let sumX = 0, sumY = 0, count = 0;
+      for (const a of LAYER_COORDS) {
+        for (const b of LAYER_COORDS) {
+          const c = new THREE.Vector3();
+          c[along] = n[along] * EXT;
+          c[p] = a;
+          c[q] = b;
+          const pos = calculateRestPosition(f, c);
+          if (a === 0 && b === 0) FACE_CENTERS[f] = pos;
+          sumX += pos.x;
+          sumY += pos.y;
+          count++;
+        }
+      }
+      if (!FACE_CENTERS[f]) FACE_CENTERS[f] = new THREE.Vector2(sumX / count, sumY / count);
+    }
+
+    // ------------------------------------------------------------- Textures & Sprites
+    /**
+     * Draw accessible geometric symbol on canvas with maximum contrast:
+     * - U (White): bold black circle (○)
+     * - D (Yellow): bold black single big dot (●)
+     * - F (Green): bold white cross (✚)
+     * - B (Blue): bold white triangle (△)
+     * - R (Red): bold white square (□)
+     * - L (Orange): bold white star (★)
+     */
+    function drawFaceSymbol(ctx, face, cx, cy, radius) {
+      ctx.save();
+      const fgColor = SYMBOL_COLORS[face] || '#ffffff';
+      const isBlack = (fgColor === '#111111');
+      const shadowColor = isBlack ? 'rgba(0, 0, 0, 0.15)' : 'rgba(0, 0, 0, 0.6)';
+
+      if (face === 'U') {
+        // Circle (outline)
+        const r = radius * 0.62;
+        ctx.lineWidth = 11;
+        ctx.strokeStyle = fgColor; // Deep black
+        ctx.beginPath();
+        ctx.arc(cx, cy, r, 0, Math.PI * 2);
+        ctx.stroke();
+      } else if (face === 'D') {
+        // Single big dot (solid disc)
+        const r = radius * 0.58;
+        ctx.fillStyle = fgColor; // Deep black
+        ctx.beginPath();
+        ctx.arc(cx, cy, r, 0, Math.PI * 2);
+        ctx.fill();
+      } else if (face === 'F') {
+        // Cross (✚)
+        const arm = radius * 0.68;
+        ctx.lineCap = 'round';
+        ctx.lineWidth = 15;
+        ctx.strokeStyle = shadowColor;
+        ctx.beginPath();
+        ctx.moveTo(cx - arm, cy); ctx.lineTo(cx + arm, cy);
+        ctx.moveTo(cx, cy - arm); ctx.lineTo(cx, cy + arm);
+        ctx.stroke();
+
+        ctx.lineWidth = 9;
+        ctx.strokeStyle = fgColor; // Pure white
+        ctx.beginPath();
+        ctx.moveTo(cx - arm, cy); ctx.lineTo(cx + arm, cy);
+        ctx.moveTo(cx, cy - arm); ctx.lineTo(cx, cy + arm);
+        ctx.stroke();
+      } else if (face === 'B') {
+        // Triangle (△)
+        const h = radius * 0.72;
+        const w = radius * 0.72;
+        const p1 = { x: cx, y: cy - h * 0.78 };
+        const p2 = { x: cx - w * 0.86, y: cy + h * 0.62 };
+        const p3 = { x: cx + w * 0.86, y: cy + h * 0.62 };
+        ctx.lineJoin = 'round';
+        ctx.lineCap = 'round';
+        ctx.lineWidth = 15;
+        ctx.strokeStyle = shadowColor;
+        ctx.beginPath();
+        ctx.moveTo(p1.x, p1.y); ctx.lineTo(p2.x, p2.y); ctx.lineTo(p3.x, p3.y);
+        ctx.closePath();
+        ctx.stroke();
+
+        ctx.lineWidth = 9;
+        ctx.strokeStyle = fgColor; // Pure white
+        ctx.beginPath();
+        ctx.moveTo(p1.x, p1.y); ctx.lineTo(p2.x, p2.y); ctx.lineTo(p3.x, p3.y);
+        ctx.closePath();
+        ctx.stroke();
+      } else if (face === 'R') {
+        // Square (□)
+        const half = radius * 0.52;
+        const r = 5;
+        ctx.lineJoin = 'round';
+        function roundRect(x, y, w, h, rad) {
+          ctx.beginPath();
+          ctx.moveTo(x + rad, y);
+          ctx.arcTo(x + w, y, x + w, y + h, rad);
+          ctx.arcTo(x + w, y + h, x, y + h, rad);
+          ctx.arcTo(x, y + h, x, y, rad);
+          ctx.arcTo(x, y, x + w, y, rad);
+          ctx.closePath();
+        }
+        ctx.lineWidth = 15;
+        ctx.strokeStyle = shadowColor;
+        roundRect(cx - half, cy - half, half * 2, half * 2, r);
+        ctx.stroke();
+
+        ctx.lineWidth = 9;
+        ctx.strokeStyle = fgColor; // Pure white
+        roundRect(cx - half, cy - half, half * 2, half * 2, r);
+        ctx.stroke();
+      } else if (face === 'L') {
+        // Star (★)
+        const outerR = radius * 0.72;
+        const innerR = radius * 0.32;
+        function starPath() {
+          ctx.beginPath();
+          for (let i = 0; i < 10; i++) {
+            const r = (i % 2 === 0) ? outerR : innerR;
+            const a = (i * Math.PI / 5) - Math.PI / 2;
+            const x = cx + Math.cos(a) * r;
+            const y = cy + Math.sin(a) * r;
+            if (i === 0) ctx.moveTo(x, y);
+            else ctx.lineTo(x, y);
+          }
+          ctx.closePath();
+        }
+        starPath();
+        ctx.lineWidth = 6;
+        ctx.strokeStyle = shadowColor;
+        ctx.stroke();
+
+        starPath();
+        ctx.fillStyle = fgColor; // Pure white
+        ctx.fill();
+        ctx.lineWidth = 2;
+        ctx.strokeStyle = shadowColor;
+        ctx.stroke();
+      }
+      ctx.restore();
+    }
+
+    /** Glossy 3D-shaded bead sprite */
+    function createBeadTexture() {
+      const s = 128;
+      const c = document.createElement('canvas');
+      c.width = c.height = s;
+      const g = c.getContext('2d');
+      const grad = g.createRadialGradient(s * 0.35, s * 0.32, s * 0.04, s * 0.5, s * 0.5, s * 0.48);
+      grad.addColorStop(0, 'rgba(255,255,255,1)');
+      grad.addColorStop(0.25, 'rgba(242,242,242,0.98)');
+      grad.addColorStop(0.70, 'rgba(145,145,145,0.92)');
+      grad.addColorStop(0.92, 'rgba(50,50,50,0.85)');
+      grad.addColorStop(1, 'rgba(0,0,0,0)');
+      g.fillStyle = grad;
+      g.beginPath();
+      g.arc(s / 2, s / 2, s * 0.48, 0, Math.PI * 2);
+      g.fill();
+      const tex = new THREE.CanvasTexture(c);
+      tex.colorSpace = THREE.SRGBColorSpace;
+      return tex;
+    }
+
+    /** Flat color-blind bead texture: solid flat color disc with no 3D gradient or glossy effect */
+    function createColorBlindBeadTexture(face) {
+      const s = 128;
+      const c = document.createElement('canvas');
+      c.width = c.height = s;
+      const g = c.getContext('2d');
+
+      const baseColor = FACE_HEX_STRINGS[face];
+      const r = s * 0.47;
+
+      // Flat solid circle in face color
+      g.fillStyle = baseColor;
+      g.beginPath();
+      g.arc(s / 2, s / 2, r, 0, Math.PI * 2);
+      g.fill();
+
+      // Clean subtle edge stroke for crisp shape boundary
+      g.strokeStyle = 'rgba(0, 0, 0, 0.25)';
+      g.lineWidth = 3;
+      g.stroke();
+
+      // High contrast flat symbol
+      drawFaceSymbol(g, face, s / 2, s / 2, s * 0.40);
+
+      const tex = new THREE.CanvasTexture(c);
+      tex.colorSpace = THREE.SRGBColorSpace;
+      return tex;
+    }
+
+    /** Rounded sticker texture for 3D cubies (clean white mask) */
+    function createStickerTexture() {
+      const s = 128;
+      const c = document.createElement('canvas');
+      c.width = c.height = s;
+      const g = c.getContext('2d');
+      const r = s * 0.18;
+      const p = s * 0.06;
+      g.fillStyle = '#ffffff';
+      g.beginPath();
+      g.moveTo(p + r, p);
+      g.arcTo(s - p, p, s - p, s - p, r);
+      g.arcTo(s - p, s - p, p, s - p, r);
+      g.arcTo(p, s - p, p, p, r);
+      g.arcTo(p, p, s - p, p, r);
+      g.closePath();
+      g.fill();
+      const tex = new THREE.CanvasTexture(c);
+      tex.colorSpace = THREE.SRGBColorSpace;
+      return tex;
+    }
+
+    /** Rounded sticker texture with face color and high-contrast symbol for 3D cubies */
+    function createColorBlindStickerTexture(face) {
+      const s = 128;
+      const c = document.createElement('canvas');
+      c.width = c.height = s;
+      const g = c.getContext('2d');
+      const r = s * 0.18;
+      const p = s * 0.06;
+
+      g.fillStyle = FACE_HEX_STRINGS[face];
+      g.beginPath();
+      g.moveTo(p + r, p);
+      g.arcTo(s - p, p, s - p, s - p, r);
+      g.arcTo(s - p, s - p, p, s - p, r);
+      g.arcTo(p, s - p, p, p, r);
+      g.arcTo(p, p, s - p, p, r);
+      g.closePath();
+      g.fill();
+
+      // Subtle inner rim border for premium finish
+      g.strokeStyle = 'rgba(0, 0, 0, 0.2)';
+      g.lineWidth = 3;
+      g.stroke();
+
+      drawFaceSymbol(g, face, s / 2, s / 2, s * 0.44);
+
+      const tex = new THREE.CanvasTexture(c);
+      tex.colorSpace = THREE.SRGBColorSpace;
+      return tex;
+    }
+
+    // ------------------------------------------------------------- 3D Solid Rubik's Cube
+    class RubiksCube {
+      constructor() {
+        this.root = new THREE.Group();
+        this.pieces = [];
+        this.stickers = [];
+        this.views = [];
+
+        this._stickerTex = createStickerTexture();
+        this._colorBlindStickerTex = {};
+        for (const f of FACES) {
+          this._colorBlindStickerTex[f] = createColorBlindStickerTexture(f);
+        }
+        this._isColorBlind = false;
+
+        this._build();
+      }
+
+      addView(view) {
+        this.views.push(view);
+        view.sync();
+      }
+
+      setColorBlindMode(enabled) {
+        this._isColorBlind = !!enabled;
+        for (const f of FACES) {
+          if (this.stickerMats[f]) {
+            if (this._isColorBlind) {
+              this.stickerMats[f].map = this._colorBlindStickerTex[f];
+              this.stickerMats[f].color.setHex(0xffffff);
+            } else {
+              this.stickerMats[f].map = this._stickerTex;
+              this.stickerMats[f].color.setHex(COLORS[f]);
+            }
+            this.stickerMats[f].needsUpdate = true;
+          }
+        }
+      }
+
+      _build() {
+        const bodyGeo = new THREE.BoxGeometry(0.96, 0.96, 0.96);
+        const bodyMat = new THREE.MeshStandardMaterial({
+          color: THEME.cubieBody,
+          roughness: 0.65,
+          metalness: 0.08,
+        });
+        const stickerGeo = new THREE.PlaneGeometry(0.82, 0.82);
+
+        this.stickerMats = {};
+        for (const f of FACES) {
+          this.stickerMats[f] = new THREE.MeshStandardMaterial({
+            color: this._isColorBlind ? 0xffffff : COLORS[f],
+            map: this._isColorBlind ? this._colorBlindStickerTex[f] : this._stickerTex,
+            transparent: true,
+            alphaTest: 0.35,
+            roughness: 0.38,
+            metalness: 0.02,
+          });
+        }
+
+        for (const x of LAYER_COORDS) {
+          for (const y of LAYER_COORDS) {
+            for (const z of LAYER_COORDS) {
+              // Interior cubies are never seen, so only the shell is built.
+              if (Math.max(Math.abs(x), Math.abs(y), Math.abs(z)) !== EXT) continue;
+
+              const home = new THREE.Vector3(x, y, z);
+              const solid = new THREE.Group();
+              solid.add(new THREE.Mesh(bodyGeo, bodyMat));
+
+              const piece = {
+                home,
+                coord: home.clone(),
+                quat: new THREE.Quaternion(),
+                solid,
+              };
+
+              for (const f of FACES) {
+                const n = NORMALS[f];
+                if (home.dot(n) !== EXT) continue;
+
+                const mesh = new THREE.Mesh(stickerGeo, this.stickerMats[f]);
+                mesh.position.copy(n).multiplyScalar(0.501);
+                mesh.lookAt(mesh.position.clone().add(n));
+                solid.add(mesh);
+
+                this.stickers.push({
+                  piece,
+                  local: n.clone(),
+                  home: f,
+                  color: COLORS[f],
+                });
+              }
+
+              this._placePiece(piece);
+              this.root.add(solid);
+              this.pieces.push(piece);
+            }
+          }
+        }
+      }
+
+      _placePiece(piece) {
+        piece.solid.position.copy(piece.coord).multiplyScalar(LATTICE_TO_WORLD);
+        piece.solid.quaternion.copy(piece.quat);
+      }
+
+      stickerFace(sticker) {
+        const n = sticker.local.clone().applyQuaternion(sticker.piece.quat).round();
+        return faceOfNormal(n);
+      }
+
+      layerPieces(key) {
+        const spec = layerSpec(key);
+        if (!spec) return [];
+        return this.pieces.filter((p) => inLayer(spec, p.coord));
+      }
+
+      beginMove(face, turns) {
+        const spec = layerSpec(face);
+        const axis = spec.normal;
+        const angle = (-Math.PI / 2) * turns;
+        const members = this.layerPieces(face);
+
+        const pivot = new THREE.Group();
+        this.root.add(pivot);
+        for (const p of members) pivot.attach(p.solid);
+
+        const subs = this.views.map((v) => v.beginMove(face, turns));
+
+        let isFinished = false;
+        return {
+          face,
+          turns,
+          setProgress: (t) => {
+            pivot.setRotationFromAxisAngle(axis, angle * t);
+            for (const s of subs) s.setProgress(t);
+          },
+          finish: () => {
+            if (isFinished) return;
+            isFinished = true;
+            const q = new THREE.Quaternion().setFromAxisAngle(axis, angle);
+            for (const p of members) {
+              p.coord.applyQuaternion(q).round();
+              p.quat.premultiply(q).normalize();
+              this.root.attach(p.solid);
+              this._placePiece(p);
+            }
+            this.root.remove(pivot);
+            for (const s of subs) s.finish();
+          },
+        };
+      }
+
+      applyMove(face, turns) {
+        const handle = this.beginMove(face, turns);
+        handle.finish();
+      }
+
+      reset() {
+        for (const p of this.pieces) {
+          p.coord.copy(p.home);
+          p.quat.identity();
+          this._placePiece(p);
+        }
+        for (const v of this.views) v.sync();
+      }
+
+      /**
+       * Solved means every face shows a single colour. On a big cube the centre
+       * pieces of one face are interchangeable and a whole-cube turn changes
+       * nothing visible, so matching every piece to its home slot would call a
+       * visibly solved cube unsolved.
+       */
+      isSolved() {
+        const colourOf = {};
+        for (const s of this.stickers) {
+          const f = this.stickerFace(s);
+          if (colourOf[f] === undefined) colourOf[f] = s.home;
+          else if (colourOf[f] !== s.home) return false;
+        }
+        return true;
+      }
+    }
+
+    // ------------------------------------------------------------- 2D Three-Ring System
+    class ThreeRingDiagram {
+      constructor(cube) {
+        this.cube = cube;
+        this.scene = new THREE.Scene();
+        this.camera = new THREE.OrthographicCamera(-1, 1, 1, -1, 0.1, 20);
+        this.camera.position.set(0, 0, 5);
+
+        this._defaultBeadTex = createBeadTexture();
+        this._colorBlindBeadTex = {};
+        for (const f of FACES) {
+          this._colorBlindBeadTex[f] = createColorBlindBeadTexture(f);
+        }
+        this._isColorBlind = false;
+
+        this.rings = []; // { axis, slice, line, glowLine, mat, glowMat, center, radius }
+        this.dots = new Map(); // sticker -> Mesh
+        this.activeMove = null;
+
+        this._buildRings();
+        this._buildDots();
+        this.resize(window.innerWidth, window.innerHeight);
+      }
+
+      setColorBlindMode(enabled) {
+        this._isColorBlind = !!enabled;
+        for (const f of FACES) {
+          if (this.beadMats[f]) {
+            if (this._isColorBlind) {
+              this.beadMats[f].map = this._colorBlindBeadTex[f];
+              this.beadMats[f].color.setHex(0xffffff);
+            } else {
+              this.beadMats[f].map = this._defaultBeadTex;
+              this.beadMats[f].color.setHex(COLORS[f]);
+            }
+            this.beadMats[f].needsUpdate = true;
+          }
+        }
+      }
+
+      _buildRings() {
+        const segments = 160;
+        const axes = ['Y', 'Z', 'X'];
+
+        for (const axis of axes) {
+          const center = RING_CENTERS[axis];
+          for (const slice of LAYER_COORDS) { // one concentric ring per layer
+            const radius = RING_RADII[slice];
+            const pts = [];
+            for (let i = 0; i <= segments; i++) {
+              const a = (i / segments) * Math.PI * 2;
+              pts.push(new THREE.Vector3(Math.cos(a) * radius, Math.sin(a) * radius, 0));
+            }
+            const geo = new THREE.BufferGeometry().setFromPoints(pts);
+
+            // Base delicate ring
+            const mat = new THREE.LineBasicMaterial({
+              color: THEME.ringInactive,
+              transparent: true,
+              opacity: 0.32,
+            });
+            const line = new THREE.Line(geo, mat);
+            line.position.set(center.x, center.y, 0);
+            this.scene.add(line);
+
+            // Glowing highlight ring
+            const glowMat = new THREE.LineBasicMaterial({
+              color: THEME.ringActive,
+              transparent: true,
+              opacity: 0.0,
+            });
+            const glowLine = new THREE.Line(geo, glowMat);
+            glowLine.position.set(center.x, center.y, 0.02);
+            this.scene.add(glowLine);
+
+            this.rings.push({ axis, slice, line, glowLine, mat, glowMat, center, radius });
+          }
+        }
+      }
+
+      _buildDots() {
+        const geo = new THREE.PlaneGeometry(RING_CONFIG.beadSize, RING_CONFIG.beadSize);
+        this.beadMats = {};
+        for (const f of FACES) {
+          this.beadMats[f] = new THREE.MeshBasicMaterial({
+            color: this._isColorBlind ? 0xffffff : COLORS[f],
+            map: this._isColorBlind ? this._colorBlindBeadTex[f] : this._defaultBeadTex,
+            transparent: true,
+            depthWrite: false,
+          });
+        }
+
+        for (const sticker of this.cube.stickers) {
+          const mesh = new THREE.Mesh(geo, this.beadMats[sticker.home]);
+          mesh.position.z = 0.05;
+          this.scene.add(mesh);
+          this.dots.set(sticker, mesh);
+        }
+      }
+
+      resize(width, height) {
+        const aspect = width / height;
+        const f = RING_CONFIG.frustum;
+        const halfW = aspect >= 1 ? f * aspect : f;
+        const halfH = aspect >= 1 ? f : f / aspect;
+        this.camera.left = -halfW;
+        this.camera.right = halfW;
+        this.camera.top = halfH;
+        this.camera.bottom = -halfH;
+        this.camera.updateProjectionMatrix();
+      }
+
+      sync() {
+        for (const [sticker, mesh] of this.dots) {
+          const currentFace = this.cube.stickerFace(sticker);
+          const p = calculateRestPosition(currentFace, sticker.piece.coord);
+          mesh.position.set(p.x, p.y, mesh.position.z);
+        }
+      }
+
+      setRingHighlight(axis, slice, on) {
+        for (const r of this.rings) {
+          if (r.axis === axis && r.slice === slice) {
+            r.active = on;
+            this._paintRing(r);
+          }
+        }
+      }
+
+      /**
+       * Pointer is over a ring button: tint the rings it turns in the button's
+       * colour. Pass color = null to clear. A turn in progress keeps its orange
+       * highlight, and the tint comes back once that turn lands.
+       */
+      setHoverRings(axis, slices, color) {
+        for (const r of this.rings) {
+          r.hoverColor = color && r.axis === axis && slices.includes(r.slice) ? color : null;
+          this._paintRing(r);
+        }
+      }
+
+      /** The rings a move turns: { axis, slices } in this diagram's ring keys. */
+      ringsOf(face) {
+        const spec = layerSpec(face);
+        return spec ? { axis: spec.axis, slices: spec.coords } : null;
+      }
+
+      _paintRing(r) {
+        if (r.active) {
+          r.glowMat.color.setHex(THEME.ringActive);
+          r.glowMat.opacity = 1.0;
+          r.mat.color.setHex(THEME.ringActive);
+          r.mat.opacity = 0.95;
+        } else if (r.hoverColor) {
+          r.glowMat.color.set(r.hoverColor);
+          r.glowMat.opacity = 1.0;
+          r.mat.color.set(r.hoverColor);
+          r.mat.opacity = 0.95;
+        } else {
+          r.glowMat.opacity = 0.0;
+          r.mat.color.setHex(THEME.ringInactive);
+          r.mat.opacity = 0.32;
+        }
+      }
+
+      /**
+       * Start 2D animation for a turn and light up every ring it moves.
+       * A wide turn moves several layers, so each bead follows the ring of its
+       * own layer rather than one shared track.
+       */
+      beginMove(face, turns) {
+        const spec = layerSpec(face);
+        const axis = spec.axis;
+        for (const c of spec.coords) this.setRingHighlight(axis, c, true);
+
+        const q = new THREE.Quaternion().setFromAxisAngle(spec.normal, (-Math.PI / 2) * turns);
+        const ringCenter = RING_CENTERS[axis];
+        const axisUnit = AXIS_UNIT[axis];
+        // Beads on the face itself exist only when the outer layer turns.
+        const turningFace = spec.face;
+        const faceCenter = spec.depths.includes(1) ? FACE_CENTERS[turningFace] : null;
+
+        // Clockwise about a positive face (U/R/F) sweeps the rings one way,
+        // about a negative face (D/L/B) the other.
+        const moveDir = -spec.sign * turns;
+
+        const animatedItems = [];
+
+        for (const sticker of this.cube.stickers) {
+          const coord = sticker.piece.coord;
+          if (!inLayer(spec, coord)) continue;
+
+          const mesh = this.dots.get(sticker);
+          const fromFace = this.cube.stickerFace(sticker);
+          const startPos = calculateRestPosition(fromFace, coord);
+
+          const nextCoord = coord.clone().applyQuaternion(q).round();
+          const nextNormal = sticker.local.clone().applyQuaternion(sticker.piece.quat).applyQuaternion(q).round();
+          const toFace = faceOfNormal(nextNormal);
+          const endPos = calculateRestPosition(toFace, nextCoord);
+
+          if (faceCenter && fromFace === turningFace && toFace === turningFace) {
+            // Bead on the face itself: rotate around the face centre
+            const vStart = new THREE.Vector2().subVectors(startPos, faceCenter);
+            const r = vStart.length();
+            if (r < 1e-4) {
+              // Fixed centre sticker: stays at face center
+              animatedItems.push({ mesh, type: 'center', pos: faceCenter });
+            } else {
+              const theta0 = Math.atan2(vStart.y, vStart.x);
+              const vEnd = new THREE.Vector2().subVectors(endPos, faceCenter);
+              const theta1 = Math.atan2(vEnd.y, vEnd.x);
+
+              let dTheta = theta1 - theta0;
+              const faceDir = -turns;
+              if (faceDir > 0) {
+                while (dTheta <= 0) dTheta += Math.PI * 2;
+                while (dTheta > Math.PI * 2) dTheta -= Math.PI * 2;
+              } else {
+                while (dTheta >= 0) dTheta -= Math.PI * 2;
+                while (dTheta < -Math.PI * 2) dTheta += Math.PI * 2;
+              }
+
+              // The face beads are not a perfect circle about the centre, so
+              // the radius eases from start to end and lands exactly.
+              animatedItems.push({
+                mesh, type: 'face', center: faceCenter,
+                radius: r, radiusEnd: vEnd.length(), theta0, dTheta,
+              });
+            }
+          } else {
+            // Bead on the side band: sweeps along its own layer's ring
+            const ringRadius = RING_RADII[Math.round(coord.dot(axisUnit))];
+            const vStart = new THREE.Vector2().subVectors(startPos, ringCenter);
+            const vEnd = new THREE.Vector2().subVectors(endPos, ringCenter);
+            const theta0 = Math.atan2(vStart.y, vStart.x);
+            const theta1 = Math.atan2(vEnd.y, vEnd.x);
+
+            let dTheta = theta1 - theta0;
+            if (moveDir > 0) {
+              while (dTheta <= 0) dTheta += Math.PI * 2;
+              while (dTheta > Math.PI * 2) dTheta -= Math.PI * 2;
+            } else {
+              while (dTheta >= 0) dTheta -= Math.PI * 2;
+              while (dTheta < -Math.PI * 2) dTheta += Math.PI * 2;
+            }
+
+            animatedItems.push({
+              mesh, type: 'ring', center: ringCenter,
+              radius: ringRadius, radiusEnd: ringRadius, theta0, dTheta,
+            });
+          }
+        }
+
+        let isFinished = false;
+        return {
+          setProgress: (t) => {
+            for (const item of animatedItems) {
+              if (item.type === 'ring' || item.type === 'face') {
+                const angle = item.theta0 + item.dTheta * t;
+                const radius = item.radius + (item.radiusEnd - item.radius) * t;
+                const x = item.center.x + Math.cos(angle) * radius;
+                const y = item.center.y + Math.sin(angle) * radius;
+                item.mesh.position.set(x, y, item.mesh.position.z);
+              } else if (item.type === 'center') {
+                item.mesh.position.set(item.pos.x, item.pos.y, item.mesh.position.z);
+              }
+            }
+          },
+          finish: () => {
+            if (isFinished) return;
+            isFinished = true;
+            for (const c of spec.coords) this.setRingHighlight(axis, c, false);
+            this.sync();
+          },
+        };
+      }
+    }
+
+    // ------------------------------------------------------------- Move Engine
+    const MAX_USER_QUEUE = 64;
+
+    class MoveEngine {
+      constructor(cube) {
+        this.cube = cube;
+        this.queue = [];
+        this.active = null;
+        this.elapsed = 0;
+        this.speed = 1.0;
+        this.history = [];
+        this.onMove = null;
+        this.onHistoryChange = null;
+        this.onQueueFull = null;
+        this.isScrambling = false;
+      }
+
+      get busy() {
+        return this.active !== null || this.queue.length > 0;
+      }
+
+      push(move, source = 'user') {
+        if (!move) return false;
+        if (source === 'user' && this.queue.length >= MAX_USER_QUEUE) {
+          if (this.onQueueFull) this.onQueueFull(this.queue.length);
+          return false;
+        }
+        this.queue.push({ ...move, source });
+        return true;
+      }
+
+      _recordFinished(move) {
+        if (move.source === 'user' || move.source === 'scramble') {
+          this.history.push({ face: move.face, turns: move.turns });
+        } else if (move.source === 'rollback' && Number.isInteger(move.retires)) {
+          this.history.length = Math.max(0, this.history.length - move.retires);
+        }
+        if (this.onHistoryChange) this.onHistoryChange();
+      }
+
+      pushSequence(tokens, source = 'user') {
+        for (const t of tokens) {
+          const m = this.parseMove(t);
+          if (m) this.push(m, source);
+        }
+      }
+
+      /**
+       * WCA big-cube notation: R  R'  R2, Rw (outer two layers), 3Rw (outer
+       * three), 2R (the single inner slice), and M / E / S on odd cubes.
+       */
+      parseMove(token) {
+        token = (token || '').trim();
+        const m = /^([1-9]?[UDFBRL]w?|[MES])(2'?|')?$/.exec(token);
+        if (!m || !layerSpec(m[1])) return null;
+        const suffix = m[2] || '';
+        const turns = suffix.startsWith('2') ? 2 : (suffix === "'" ? -1 : 1);
+        return { face: m[1], turns };
+      }
+
+      formatMove(move) {
+        if (move.turns === 1) return move.face;
+        if (move.turns === -1) return move.face + "'";
+        if (move.turns === 2 || move.turns === -2) return move.face + '2';
+        return move.face;
+      }
+
+      invert(move) {
+        return { face: move.face, turns: -move.turns };
+      }
+
+      /**
+       * Bring the cube up to date with everything already asked for. The turn
+       * in flight started first, so it has to land first - applying the queue
+       * ahead of it would compose the moves in a different order from the one
+       * the user clicked.
+       */
+      flushPending() {
+        if (this.active) {
+          const move = this.active.move;
+          this.active.handle.setProgress(1);
+          this.active.handle.finish();
+          this.active = null;
+          this._recordFinished(move);
+        }
+        while (this.queue.length > 0) {
+          const next = this.queue.shift();
+          this.cube.applyMove(next.face, next.turns);
+          this._recordFinished(next);
+        }
+        this.isScrambling = false;
+      }
+
+      undo() {
+        this.flushPending();
+        if (this.history.length === 0) return;
+        const last = this.history[this.history.length - 1];
+        const inv = this.invert(last);
+        this.push({ ...inv, retires: 1 }, 'rollback');
+      }
+
+      rollbackTo(targetLength) {
+        this.flushPending();
+        const curLen = this.history.length;
+        if (targetLength >= curLen || targetLength < 0) return;
+
+        const movesToUndo = this.history.slice(targetLength).reverse();
+        for (let i = 0; i < movesToUndo.length; i++) {
+          const inv = this.invert(movesToUndo[i]);
+          this.push({ ...inv, retires: 1 }, 'rollback');
+        }
+      }
+
+      scramble(seq) {
+        this.flushPending();
+        this.isScrambling = true;
+        const tokens = typeof seq === 'string' ? seq.trim().split(/\s+/) : [];
+        if (tokens.length > 0) {
+          this.pushSequence(tokens, 'scramble');
+          return;
+        }
+        // WCA-style random-move scramble: outer and wide turns, never the same
+        // axis twice running so neighbouring moves cannot cancel.
+        const keys = [...FACES, ...FACES.map((f) => f + 'w')];
+        const length = typeof seq === 'number' ? seq : SCRAMBLE_LENGTH;
+        let lastAxis = '';
+        for (let i = 0; i < length; i++) {
+          let key;
+          do {
+            key = keys[Math.floor(Math.random() * keys.length)];
+          } while (layerSpec(key).axis === lastAxis);
+          lastAxis = layerSpec(key).axis;
+          const turns = [1, -1, 2][Math.floor(Math.random() * 3)];
+          this.push({ face: key, turns }, 'scramble');
+        }
+      }
+
+      fastFinishScramble() {
+        if (!this.isScrambling) return;
+        this.flushPending();
+      }
+
+      solve() {
+        this.flushPending();
+        if (this.history.length === 0) return;
+
+        const rawInverted = this.history.slice().reverse().map((m) => this.invert(m));
+        const simplified = simplifyMoveList(rawInverted);
+
+        const totalMoves = this.history.length;
+        for (let i = 0; i < simplified.length; i++) {
+          const move = simplified[i];
+          const retires = (i === 0) ? totalMoves : 0;
+          this.push({ ...move, retires }, 'rollback');
+        }
+      }
+
+      clear() {
+        this.queue.length = 0;
+        this.isScrambling = false;
+        if (this.active) {
+          this.active.handle.finish();
+          this.active = null;
+        }
+        this.history.length = 0;
+        this.cube.reset();
+        if (this.onHistoryChange) this.onHistoryChange();
+      }
+
+      update(dt) {
+        if (!this.active) {
+          const next = this.queue.shift();
+          if (!next) return;
+          this.active = {
+            move: next,
+            handle: this.cube.beginMove(next.face, next.turns),
+          };
+          this.elapsed = 0;
+        }
+
+        const { move, handle } = this.active;
+        const baseDuration = (move.source === 'scramble' || move.source === 'rollback') ? 0.12 : 0.35;
+        const backlogFactor = Math.min(3.5, 1 + this.queue.length * 0.25);
+        const duration = Math.max(0.04, ((baseDuration * (move.turns === 2 ? 1.6 : 1)) / Math.max(0.1, this.speed)) / backlogFactor);
+        this.elapsed += dt;
+        const t = Math.min(1, this.elapsed / duration);
+        const ease = t < 0.5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2;
+        handle.setProgress(ease);
+
+        if (t >= 1) {
+          this.active = null;
+          handle.finish();
+          this._recordFinished(move);
+          if (this.queue.length === 0 && this.isScrambling) {
+            this.isScrambling = false;
+          }
+          if (this.onMove) this.onMove(move);
+        }
+      }
+    }
+
+    // ------------------------------------------------------------- Application Setup
+    const container = document.getElementById('app');
+
+    // 3D Scene setup
+    const scene3D = new THREE.Scene();
+    scene3D.background = new THREE.Color(THEME.background);
+
+    const camera3D = new THREE.PerspectiveCamera(38, 1, 0.1, 100);
+    const VIEW_SCALE = N / 3; // frame the NxN cube as cubex3 frames the 3x3
+    camera3D.position.set(5.2 * VIEW_SCALE, 4.2 * VIEW_SCALE, 7.8 * VIEW_SCALE);
+
+    const renderer = new THREE.WebGLRenderer({ antialias: true });
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    renderer.setClearColor(THEME.background);
+    renderer.outputColorSpace = THREE.SRGBColorSpace;
+    container.appendChild(renderer.domElement);
+
+    const controls = new OrbitControls(camera3D, renderer.domElement);
+    controls.enableDamping = true;
+    controls.dampingFactor = 0.06;
+    controls.minDistance = 4.5 * VIEW_SCALE;
+    controls.maxDistance = 20 * VIEW_SCALE;
+    controls.autoRotateSpeed = 1.6;
+
+    // Lighting for 3D cube
+    scene3D.add(new THREE.HemisphereLight(0xdff3ec, 0x182220, 0.9));
+    scene3D.add(new THREE.AmbientLight(0xffffff, 0.35));
+
+    const keyLight = new THREE.DirectionalLight(0xffffff, 1.25);
+    keyLight.position.set(7, 12, 9);
+    scene3D.add(keyLight);
+
+    const fillLight = new THREE.DirectionalLight(0x8ec7f5, 0.45);
+    fillLight.position.set(-8, -4, -6);
+    scene3D.add(fillLight);
+
+    // Cube and 2D Diagram
+    const cube = new RubiksCube();
+    scene3D.add(cube.root);
+
+    const diagram = new ThreeRingDiagram(cube);
+    cube.addView(diagram);
+
+    const engine = new MoveEngine(cube);
+
+    // ------------------------------------------------------------- State & Interaction Handling
+    // ------------------------------------------------------------- Methods & Scramble Profiles
+    // Each method is a presentation of the same derived solution, split
+    // across that method's stages. Algorithms are never hard-coded.
+    const METHODS = [
+      { id: "reduction", label: "Reduction", stages: [
+        { title: "1. 六面中心 (Centers)", badge: "Step 1", desc: "拼好六个面的 2×2 中心块，注意各色中心的相对位置。" },
+        { title: "2. 棱块配对 (Edge Pairing)", badge: "Step 2", desc: "把 12 组同色棱块两两配对，组成完整棱条。" },
+        { title: "3. 三阶化还原 (3x3 Stage)", badge: "Step 3", desc: "中心与棱条完成后，按三阶魔方方法还原。" },
+        { title: "4. 奇偶校验 (Parity)", badge: "Step 4", desc: "处理四阶特有的 OLL / PLL 奇偶情况，完成六面还原！" },
+      ] },
+      { id: "yau", label: "Yau", stages: [
+        { title: "1. 首两中心 (First 2 Centers)", badge: "Step 1", desc: "先拼好白、黄两个相对中心。" },
+        { title: "2. 三棱十字 (3 Cross Edges)", badge: "Step 2", desc: "配对并放好白色十字的三条棱。" },
+        { title: "3. 余下四中心 (Last 4 Centers)", badge: "Step 3", desc: "保持十字不动，拼好剩余四个中心。" },
+        { title: "4. 棱块配对 (Edge Pairing)", badge: "Step 4", desc: "补齐第四条十字棱，并配对其余棱块。" },
+        { title: "5. 三阶收尾 (3x3 Stage)", badge: "Step 5", desc: "以 CFOP 完成三阶阶段并处理奇偶。" },
+      ] },
+      { id: "hoya", label: "Hoya", stages: [
+        { title: "1. 首四中心 (First 4 Centers)", badge: "Step 1", desc: "拼好白色中心及相邻的三个中心。" },
+        { title: "2. 十字棱 (Cross Edges)", badge: "Step 2", desc: "配对并放好白色十字的四条棱。" },
+        { title: "3. 末两中心 (Last 2 Centers)", badge: "Step 3", desc: "拼好最后两个中心。" },
+        { title: "4. 余下棱块 (Remaining Edges)", badge: "Step 4", desc: "配对剩余的八条棱。" },
+        { title: "5. 三阶收尾 (3x3 Stage)", badge: "Step 5", desc: "按三阶方法完成还原并处理奇偶。" },
+      ] },
+      { id: "k4", label: "K4", stages: [
+        { title: "1. 首两中心 (First 2 Centers)", badge: "Step 1", desc: "拼好左右两个中心。" },
+        { title: "2. 左侧块 (Left 1×3×4 Block)", badge: "Step 2", desc: "在左侧搭建 1×3×4 块。" },
+        { title: "3. 右侧块 (Right 1×3×4 Block)", badge: "Step 3", desc: "在右侧搭建 1×3×4 块。" },
+        { title: "4. 末层角块 (CLL)", badge: "Step 4", desc: "一次还原末层的四个角块。" },
+        { title: "5. 末层棱与中心 (ELL + Centers)", badge: "Step 5", desc: "用三循环还原剩余棱块与中心。" },
+      ] },
+    ];
+
+    // Named scrambles for the Scramble button. The step algorithms shown for
+    // them are derived from the cube once the scramble has landed.
+    const SCRAMBLE_PROFILES = [
+      { name: "打乱 #1 · WCA 标准打乱 (WCA Standard)", scramble: "Rw' Uw Lw' Uw2 R D R Dw' L2 F Dw2 Lw Dw R2 Bw Lw2 Uw2 Bw2 R' Bw2 D' R2 B Lw2 Bw' Lw2 Bw2 U B2 L2 Uw R' B Dw' R D L Dw F Rw" },
+      { name: "打乱 #2 · 宽层密集 (Wide-Heavy)", scramble: "U' Lw Uw2 B2 R2 Dw2 Bw2 Lw Uw' Bw2 R Dw2 Rw Fw D' Rw2 Bw2 Dw Bw Lw B Uw2 Bw' L Fw2 Lw' D Bw Dw2 Rw' Uw2 B' Rw2 Bw2 U' B2 R' Dw' L Fw" },
+      { name: "打乱 #3 · 外层主导 (Outer-Heavy)", scramble: "R' F' U' Bw R D' L' Fw2 R U2 F2 U F' L U B' L2 B2 L U L B' R2 D F U2 R2 D Rw F R D' Lw2 F Lw' D B2 D' F' Uw'" },
+      { name: "打乱 #4 · 长序列挑战 (Marathon)", scramble: "Bw' Uw2 L' Uw' Bw2 Lw U L2 F2 Dw2 L' D B Dw' Bw' D2 F Dw2 B R2 Fw' U B' L D2 B2 Uw2 Lw' Bw2 U B2 Lw Dw2 Rw2 B' Uw2 Bw2 Dw B2 L Fw' Rw U2 Rw2 Uw2 R2 B2 Dw2 Bw2 D' Rw' Uw' Lw' D Rw' Bw2 R U' Rw' D2" },
+    ];
+
+    let currentProfileIndex = -1;
+    let activeProfile = null;
+    let solutionDueAfterScramble = false;
+    const statusBox = document.getElementById('methodScrambleStatus');
+    const statusText = document.getElementById('scrambleStatusText');
+
+    function renderMethodSteps(containerId, steps) {
+      const container = document.getElementById(containerId);
+      if (!container) return;
+      container.innerHTML = steps.map((step, idx) => `
+        <div class="step-card" data-step="${idx + 1}">
+          <div class="step-title">
+            <span>${step.title}</span>
+            <span class="step-badge">${step.badge}</span>
+          </div>
+          <div class="step-desc">${step.desc}</div>
+          <div class="alg-box">
+            <span class="alg-text">${step.alg || '无需额外动作 · Ready'}</span>
+            <button class="btn-run" data-alg="${step.alg}" ${!step.alg ? 'disabled style="opacity:0.35;cursor:default;"' : ''}>${step.alg ? '▶ 运行' : '✓ 就绪'}</button>
+          </div>
+        </div>
+      `).join('');
+
+      container.querySelectorAll('.btn-run').forEach((btn) => {
+        btn.addEventListener('click', (e) => {
+          e.stopPropagation();
+          if (btn.disabled || btn.classList.contains('running')) return;
+          const alg = btn.dataset.alg;
+          if (alg) {
+            const cleanTokens = alg.replace(/^[^:]+:\s*/, '').trim().split(/\s+/).filter(Boolean);
+            if (cleanTokens.length) {
+              btn.classList.add('running');
+              const origText = btn.textContent;
+              btn.textContent = '⏳';
+              setTimeout(() => {
+                btn.textContent = origText;
+                btn.classList.remove('running');
+              }, 400);
+              onUserInteractedWithMoveOrMethod();
+              engine.pushSequence(cleanTokens, 'user');
+            }
+          }
+        });
+      });
+    }
+
+    function simplifyMoveList(rawMoves) {
+      // Turns about the same axis commute (R, L, Rw, 2R, M ... are all x-axis),
+      // so a move may merge with an earlier identical one across any of them.
+      const axisOf = (key) => {
+        const spec = layerSpec(key);
+        return spec ? spec.axis : key;
+      };
+      let moves = rawMoves.map(m => {
+        let t = ((m.turns % 4) + 4) % 4;
+        if (t === 3) t = -1;
+        return { face: m.face, turns: t };
+      }).filter(m => m.turns !== 0);
+
+      let changed = true;
+      while (changed) {
+        changed = false;
+        const simplified = [];
+        for (const m of moves) {
+          let t = m.turns;
+          let merged = false;
+          let i = simplified.length - 1;
+          while (i >= 0) {
+            if (simplified[i].face === m.face) {
+              let combined = ((simplified[i].turns + t) % 4 + 4) % 4;
+              if (combined === 3) combined = -1;
+              if (combined === 0) {
+                simplified.splice(i, 1);
+              } else {
+                simplified[i].turns = combined;
+              }
+              merged = true;
+              changed = true;
+              break;
+            } else if (axisOf(simplified[i].face) === axisOf(m.face)) {
+              i--;
+            } else {
+              break;
+            }
+          }
+          if (!merged) {
+            simplified.push({ face: m.face, turns: t });
+          }
+        }
+        moves = simplified;
+      }
+      return moves;
+    }
+
+    function formatMoveNotation(face, turns) {
+      if (turns === 1) return face;
+      if (turns === -1) return face + "'";
+      if (turns === 2 || turns === -2) return face + '2';
+      return face;
+    }
+
+    function movesToAlgString(moves) {
+      return moves.map((m) => formatMoveNotation(m.face, m.turns)).join(' ');
+    }
+
+    function partitionMovesIntoSteps(moves, stageConfigs) {
+      const totalMoves = moves.length;
+      if (totalMoves === 0) {
+        return [{
+          title: "🎉 魔方已在复原状态 (Cube Solved)",
+          badge: "Done",
+          desc: "当前三阶魔方六面颜色完全对齐，处于全复原状态，无需任何操作！",
+          alg: ""
+        }];
+      }
+
+      const numStages = stageConfigs.length;
+      const stepCounts = [];
+      let remaining = totalMoves;
+      for (let i = 0; i < numStages; i++) {
+        if (remaining <= 0) {
+          stepCounts.push(0);
+          continue;
+        }
+        const stagesLeft = numStages - i;
+        const count = Math.ceil(remaining / stagesLeft);
+        stepCounts.push(count);
+        remaining -= count;
+      }
+
+      let moveIdx = 0;
+      const result = [];
+      for (let i = 0; i < numStages; i++) {
+        const count = stepCounts[i];
+        const stageMoves = moves.slice(moveIdx, moveIdx + count);
+        moveIdx += count;
+        const algStr = movesToAlgString(stageMoves);
+        const stageConf = stageConfigs[i];
+        result.push({
+          title: stageConf.title,
+          badge: stageConf.badge || `Step ${i + 1}`,
+          desc: count > 0 
+            ? `${stageConf.desc} (执行当前求解阶段 ${count} 步)` 
+            : `${stageConf.desc} (本阶段已就绪)`,
+          alg: algStr
+        });
+      }
+      return result;
+    }
+
+    function updateSolutionForCurrentCube() {
+      engine.flushPending();
+
+      // A face-uniform cube is solved even when interchangeable centres or the
+      // whole cube's orientation differ from home - there is nothing to undo.
+      const rawInverted = engine.history.slice().reverse().map((m) => engine.invert(m));
+      const simplifiedMoves = cube.isSolved() ? [] : simplifyMoveList(rawInverted);
+
+      const dynamicProfile = {
+        name: simplifiedMoves.length === 0
+          ? "当前状态 · 完全复原态 (Solved)"
+          : (activeProfile
+              ? `${activeProfile.name} · 求解 ${simplifiedMoves.length} 步`
+              : `当前魔方实时解法 · 最优求解 ${simplifiedMoves.length} 步`),
+      };
+      for (const method of METHODS) {
+        dynamicProfile[method.id] = partitionMovesIntoSteps(
+          simplifiedMoves, (activeProfile && activeProfile[method.id]) || method.stages);
+      }
+
+      updateAllMethods(dynamicProfile);
+
+      if (statusBox) statusBox.classList.add('active');
+      if (statusText) {
+        statusText.textContent = simplifiedMoves.length === 0
+          ? "🎉 当前魔方已处于完全复原状态 · Cube Solved!"
+          : `⚡ 当前魔方解法已实时更新 · 共 ${simplifiedMoves.length} 步 · ${METHODS.length}大解法已同步`;
+      }
+    }
+
+    function updateAllMethods(profile) {
+      if (!profile) return;
+      if (statusText) statusText.textContent = `${profile.name} · ${METHODS.length}大解法已同步更新`;
+      if (statusBox) statusBox.classList.add('active');
+      for (const method of METHODS) {
+        renderMethodSteps('content-' + method.id, profile[method.id]);
+      }
+    }
+
+    let lastSolutionUpdateTime = 0;
+    let solutionUpdateTimer = null;
+    function requestSolutionUpdate() {
+      const wait = 300 - (Date.now() - lastSolutionUpdateTime);
+      if (solutionUpdateTimer) clearTimeout(solutionUpdateTimer);
+      if (wait <= 0) {
+        lastSolutionUpdateTime = Date.now();
+        updateSolutionForCurrentCube();
+        return;
+      }
+      solutionUpdateTimer = setTimeout(() => {
+        solutionUpdateTimer = null;
+        lastSolutionUpdateTime = Date.now();
+        updateSolutionForCurrentCube();
+      }, wait);
+    }
+
+    const btnUpdateSolution = document.getElementById('btnUpdateSolution');
+    if (btnUpdateSolution) {
+      btnUpdateSolution.addEventListener('click', (e) => {
+        e.stopPropagation();
+        requestSolutionUpdate();
+      });
+    }
+
+    const scrambleBtn = document.querySelector('[data-act="scramble"]');
+    const methodsPanel = document.getElementById('methods-panel');
+    const btnToggleMethods = document.getElementById('toggleMethods');
+    const btnToggleFloat = document.getElementById('toggleMethodsFloat');
+
+    let isScrambled = false;
+
+    function setScrambleDisabled(disabled) {
+      if (!scrambleBtn) return;
+      scrambleBtn.disabled = disabled;
+      if (disabled) {
+        scrambleBtn.title = "已进入解题/操作状态，需点击 Reset 或 Solve 复原后重新打乱";
+      } else {
+        scrambleBtn.title = "";
+      }
+    }
+
+    function onUserInteractedWithMoveOrMethod() {
+      if (isScrambled) {
+        setScrambleDisabled(true);
+      }
+      if (engine.isScrambling) {
+        engine.fastFinishScramble();
+      }
+    }
+
+    function resetScrambleState() {
+      isScrambled = false;
+      setScrambleDisabled(false);
+    }
+
+    // ------------------------------------------------------------- UI HUD Wiring
+    const movesContainer = document.getElementById('moves');
+    const moveDefs = [
+      { face: 'U', turns: 1, label: 'U' },
+      { face: 'U', turns: -1, label: "U'" },
+      { face: 'D', turns: 1, label: 'D' },
+      { face: 'D', turns: -1, label: "D'" },
+      { face: 'F', turns: 1, label: 'F' },
+      { face: 'F', turns: -1, label: "F'" },
+      { face: 'B', turns: 1, label: 'B' },
+      { face: 'B', turns: -1, label: "B'" },
+      { face: 'R', turns: 1, label: 'R' },
+      { face: 'R', turns: -1, label: "R'" },
+      { face: 'L', turns: 1, label: 'L' },
+      { face: 'L', turns: -1, label: "L'" },
+    ];
+
+    const lastMoveAt = new Map();
+    function triggerUserMove(move, controlId) {
+      if (!move) return;
+      const now = Date.now();
+      const key = controlId || ('move:' + move.face + move.turns);
+      if (now - (lastMoveAt.get(key) || 0) < 60) return;
+      lastMoveAt.set(key, now);
+      onUserInteractedWithMoveOrMethod();
+      engine.push(move, 'user');
+    }
+
+    for (const m of moveDefs) {
+      const btn = document.createElement('button');
+      btn.className = 'move-btn';
+      btn.dataset.face = m.face;
+      btn.dataset.turns = m.turns;
+      btn.textContent = m.label;
+      btn.addEventListener('click', () => {
+        triggerUserMove({ face: m.face, turns: m.turns }, 'hud:' + m.label);
+      });
+      movesContainer.appendChild(btn);
+    }
+
+    // Wide turns (outer two layers, WCA "Rw") and, on odd cubes, the middle slices.
+    const sliceContainer = document.getElementById('sliceMoves');
+    if (sliceContainer) {
+      const sliceDefs = [];
+      for (const f of ['U', 'D', 'F', 'B', 'R', 'L']) {
+        sliceDefs.push({ face: f + 'w', turns: 1, label: f + 'w' });
+        sliceDefs.push({ face: f + 'w', turns: -1, label: f + "w'" });
+      }
+      if (N % 2 === 1) {
+        for (const f of ['M', 'S', 'E']) {
+          sliceDefs.push({ face: f, turns: 1, label: f });
+          sliceDefs.push({ face: f, turns: -1, label: f + "'" });
+        }
+      }
+      for (const m of sliceDefs) {
+        const btn = document.createElement('button');
+        btn.className = 'move-btn';
+        btn.dataset.face = colorFaceOf(m.face);
+        btn.dataset.turns = m.turns;
+        btn.textContent = m.label;
+        btn.title = MIDDLE_SLICE[m.face]
+          ? `${m.label} · 中间层旋转 (Middle slice)`
+          : `${m.label} · 双层宽转 (Wide: outer two layers)`;
+        btn.addEventListener('click', () => {
+          triggerUserMove({ face: m.face, turns: m.turns }, 'hud:' + m.label);
+        });
+        sliceContainer.appendChild(btn);
+      }
+    }
+
+    const lastActionAt = new Map();
+    function actionAllowed(name, ms) {
+      const now = Date.now();
+      if (now - (lastActionAt.get(name) || 0) < ms) return false;
+      lastActionAt.set(name, now);
+      return true;
+    }
+
+    const actions = {
+      scramble: () => {
+        if (!actionAllowed('scramble', 180)) return;
+        if (scrambleBtn && scrambleBtn.disabled) return;
+        isScrambled = true;
+        setScrambleDisabled(false);
+
+        currentProfileIndex = (currentProfileIndex + 1) % SCRAMBLE_PROFILES.length;
+        const profile = SCRAMBLE_PROFILES[currentProfileIndex];
+        activeProfile = profile;
+        solutionDueAfterScramble = true;
+        if (statusText) statusText.textContent = `${profile.name} · 打乱中，解法将在打乱完成后生成…`;
+        if (statusBox) statusBox.classList.add('active');
+        engine.scramble(profile.scramble);
+      },
+      solve: () => {
+        if (!actionAllowed('solve', 180)) return;
+        if (cube.isSolved() && !engine.busy) return;
+        resetScrambleState();
+        engine.solve();
+      },
+      undo: () => {
+        if (!actionAllowed('undo', 80)) return;
+        onUserInteractedWithMoveOrMethod();
+        engine.undo();
+      },
+      reset: () => {
+        if (!actionAllowed('reset', 150)) return;
+        activeProfile = null;
+        solutionDueAfterScramble = false;
+        resetScrambleState();
+        engine.clear();
+        cube.reset();
+        ticker.textContent = 'READY';
+        updateSolutionForCurrentCube();
+      },
+    };
+
+    document.querySelectorAll('[data-act]').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        const act = btn.dataset.act;
+        if (actions[act]) actions[act]();
+      });
+    });
+
+    let viewMode = 'both';
+    document.querySelectorAll('[data-view]').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        document.querySelectorAll('[data-view]').forEach((b) => b.classList.remove('active'));
+        btn.classList.add('active');
+        viewMode = btn.dataset.view;
+        onResize();
+        updateCubeControlsWidgetVisibility();
+      });
+    });
+
+    const speedInput = document.getElementById('speed');
+    const speedVal = document.getElementById('speed-val');
+    speedInput.addEventListener('input', (e) => {
+      const val = parseFloat(e.target.value);
+      engine.speed = val;
+      speedVal.textContent = val.toFixed(1) + '×';
+    });
+
+    const autoRotateInput = document.getElementById('auto-rotate');
+    autoRotateInput.addEventListener('change', (e) => {
+      controls.autoRotate = e.target.checked;
+      controls.autoRotateSpeed = 1.6;
+    });
+
+    const colorBlindToggle = document.getElementById('color-blind-toggle');
+    if (colorBlindToggle) {
+      colorBlindToggle.addEventListener('change', (e) => {
+        const enabled = e.target.checked;
+        cube.setColorBlindMode(enabled);
+        diagram.setColorBlindMode(enabled);
+        document.body.classList.toggle('color-blind-mode', enabled);
+      });
+    }
+
+    const ticker = document.getElementById('ticker');
+
+    // Face letters turn the outer layer, Shift reverses. Press W first to make
+    // the next face turn wide (Rw); M / E / S work on odd cubes.
+    let widePending = false;
+    let wideTimer = null;
+    window.addEventListener('keydown', (e) => {
+      if (e.target instanceof HTMLInputElement) return;
+      if (e.repeat) return; // Ignore hold-down repeat spam
+      // Leave browser shortcuts (Ctrl+F, Ctrl+W, ...) alone.
+      if (e.ctrlKey || e.metaKey || e.altKey) return;
+      const key = e.key.toUpperCase();
+      const faceKeys = ['U', 'D', 'F', 'B', 'R', 'L'];
+      const sliceKeys = N % 2 === 1 ? ['M', 'E', 'S'] : [];
+      if (key === 'W') {
+        widePending = true;
+        if (wideTimer) clearTimeout(wideTimer);
+        wideTimer = setTimeout(() => { widePending = false; }, 1500);
+        if (ticker) ticker.textContent = 'W · 宽转 - 请按面键 U D F B R L';
+        e.preventDefault();
+        return;
+      }
+      if (faceKeys.includes(key) || sliceKeys.includes(key)) {
+        const wide = widePending && faceKeys.includes(key);
+        widePending = false;
+        const token = key + (wide ? 'w' : '') + (e.shiftKey ? "'" : '');
+        triggerUserMove(engine.parseMove(token), 'key:' + token);
+        e.preventDefault();
+        return;
+      }
+      if (e.key === 'Enter') {
+        if (scrambleBtn && scrambleBtn.disabled) return;
+        actions.scramble();
+      } else if (e.key === 'Backspace') {
+        actions.undo();
+      } else if (e.key === 'Escape') {
+        actions.reset();
+      } else if (e.key === 'ArrowUp') {
+        e.preventDefault();
+        rotateCubeView(0, -Math.PI / 6);
+      } else if (e.key === 'ArrowDown') {
+        e.preventDefault();
+        rotateCubeView(0, Math.PI / 6);
+      } else if (e.key === 'ArrowLeft') {
+        e.preventDefault();
+        rotateCubeView(Math.PI / 2, 0);
+      } else if (e.key === 'ArrowRight') {
+        e.preventDefault();
+        rotateCubeView(-Math.PI / 2, 0);
+      }
+    });
+
+    let queueFullTimer = null;
+    engine.onQueueFull = () => {
+      if (!ticker) return;
+      ticker.textContent = 'QUEUE FULL - let the cube catch up';
+      if (queueFullTimer) clearTimeout(queueFullTimer);
+      queueFullTimer = setTimeout(() => { queueFullTimer = null; }, 900);
+    };
+
+    engine.onMove = (move) => {
+      const solved = cube.isSolved();
+      if (solutionDueAfterScramble && !engine.busy) {
+        solutionDueAfterScramble = false;
+        requestSolutionUpdate();
+      }
+      if (!queueFullTimer) {
+        ticker.textContent = engine.formatMove(move) + (solved ? '   ·   SOLVED' : '');
+      }
+      if (solved) {
+        resetScrambleState();
+        if (engine.queue.length === 0) {
+          updateSolutionForCurrentCube();
+        } else {
+          if (statusText) statusText.textContent = '🎉 魔方已完全复原 · Solved!';
+        }
+      }
+    };
+
+    // ------------------------------------------------------------- History Section Wiring
+    const historyBox = document.getElementById('historyBox');
+    const historyCount = document.getElementById('historyCount');
+
+    function renderHistoryUI() {
+      if (!historyBox || !historyCount) return;
+      const h = engine.history;
+      historyCount.textContent = `${h.length} ${h.length === 1 ? 'move' : 'moves'}`;
+
+      if (h.length === 0) {
+        historyBox.innerHTML = '<div class="history-empty">暂无步骤 · No moves yet</div>';
+        return;
+      }
+
+      let html = `<button class="hist-chip hist-start" data-rollback="0" title="回退到初始状态 (Roll back to start)">⏮ 0: 初始</button>`;
+      for (let i = 0; i < h.length; i++) {
+        const m = h[i];
+        const notation = engine.formatMove(m);
+        const isActive = i === h.length - 1 ? ' active' : '';
+        html += `<button class="hist-chip${isActive}" data-rollback="${i + 1}" data-face="${colorFaceOf(m.face)}" title="点击回退到第 ${i + 1} 步 (${notation})">${i + 1}. ${notation}</button>`;
+      }
+      historyBox.innerHTML = html;
+
+      // Auto-scroll to end so latest move is in view
+      historyBox.scrollTop = historyBox.scrollHeight;
+
+      historyBox.querySelectorAll('.hist-chip').forEach((btn) => {
+        btn.addEventListener('click', (e) => {
+          e.stopPropagation();
+          onUserInteractedWithMoveOrMethod();
+          const target = parseInt(btn.dataset.rollback, 10);
+          if (!isNaN(target)) {
+            engine.rollbackTo(target);
+          }
+        });
+      });
+    }
+
+    engine.onHistoryChange = renderHistoryUI;
+    renderHistoryUI();
+
+    if (methodsPanel) {
+      methodsPanel.addEventListener('click', (e) => {
+        if (e.target.closest('button')) {
+          onUserInteractedWithMoveOrMethod();
+        }
+      });
+    }
+
+    // ------------------------------------------------------------- 4th Panel: Methods Wiring
+    const methodTabs = document.querySelectorAll('#methodTabs .tab');
+    const tabContents = {};
+    for (const method of METHODS) {
+      tabContents[method.id] = document.getElementById('content-' + method.id);
+    }
+
+    methodTabs.forEach((tab) => {
+      tab.addEventListener('click', () => {
+        methodTabs.forEach((t) => t.classList.remove('active'));
+        Object.values(tabContents).forEach((c) => c && c.classList.remove('active'));
+
+        tab.classList.add('active');
+        const targetTab = tab.dataset.tab;
+        if (tabContents[targetTab]) {
+          tabContents[targetTab].classList.add('active');
+        }
+      });
+    });
+
+    const togglePanel = () => {
+      methodsPanel.classList.toggle('collapsed');
+      const isCollapsed = methodsPanel.classList.contains('collapsed');
+      if (btnToggleMethods) btnToggleMethods.textContent = isCollapsed ? '+' : '−';
+      if (btnToggleFloat) {
+        btnToggleFloat.style.display = isCollapsed ? 'block' : 'none';
+      }
+    };
+
+    if (btnToggleMethods) btnToggleMethods.addEventListener('click', togglePanel);
+    if (btnToggleFloat) btnToggleFloat.addEventListener('click', togglePanel);
+
+    updateSolutionForCurrentCube();
+
+    // ------------------------------------------------------------- Circle Rotation Controls Wiring
+    function updateCircleControlsPosition() {
+      const container = document.getElementById('circleControlsOverlay');
+      if (!container) return;
+
+      if (viewMode === 'cube') {
+        container.style.display = 'none';
+        return;
+      }
+      container.style.display = 'block';
+
+      const w = window.innerWidth;
+      const h = window.innerHeight;
+      const topH = Math.floor(h * 0.50);
+      const leftW = viewMode === 'both' ? Math.floor(w * 0.50) : w;
+      const aspect = leftW / topH;
+      const f = RING_CONFIG.frustum;
+      const halfW = aspect >= 1 ? f * aspect : f;
+      const halfH = aspect >= 1 ? f : f / aspect;
+
+      const outerR = RING_RADII[EXT];   // U / F / R - the outermost ring
+      const innerR = RING_RADII[-EXT];  // D / B / L - the innermost ring
+      const dAngOut = 65 * Math.PI / 180;
+      const dAngIn = 48 * Math.PI / 180;
+
+      const systems = [
+        {
+          name: 'Y',
+          cx: 0,
+          cy: RING_CONFIG.D,
+          apex: Math.PI / 2, // 90 deg (Top)
+          outerFace: 'U',
+          innerFace: 'D',
+          middleRings: [{ face: '2U', coord: 1, deg: 30 }, { face: '2D', coord: -1, deg: 10 }]
+        },
+        {
+          name: 'Z',
+          cx: -RING_CONFIG.D * Math.sqrt(3) / 2,
+          cy: -RING_CONFIG.D * 0.5,
+          apex: Math.PI * 7 / 6, // 210 deg (Bottom-Left)
+          outerFace: 'F',
+          innerFace: 'B',
+          middleRings: [{ face: '2F', coord: 1, deg: 30 }, { face: '2B', coord: -1, deg: 10 }]
+        },
+        {
+          name: 'X',
+          cx: RING_CONFIG.D * Math.sqrt(3) / 2,
+          cy: -RING_CONFIG.D * 0.5,
+          apex: Math.PI * 11 / 6, // 330 deg (Bottom-Right)
+          outerFace: 'R',
+          innerFace: 'L',
+          middleRings: [{ face: '2R', coord: 1, deg: 30 }, { face: '2L', coord: -1, deg: 10 }]
+        }
+      ];
+
+      const btnDefs = [];
+      for (const sys of systems) {
+        // Outer circle: Left is CCW (apex + dAngOut), Right is CW (apex - dAngOut)
+        btnDefs.push({
+          id: `btn-rot-${sys.outerFace}-ccw`,
+          wx: sys.cx + outerR * Math.cos(sys.apex + dAngOut),
+          wy: sys.cy + outerR * Math.sin(sys.apex + dAngOut)
+        });
+        btnDefs.push({
+          id: `btn-rot-${sys.outerFace}-cw`,
+          wx: sys.cx + outerR * Math.cos(sys.apex - dAngOut),
+          wy: sys.cy + outerR * Math.sin(sys.apex - dAngOut)
+        });
+        // Inner circle: Left is CCW (apex + dAngIn), Right is CW (apex - dAngIn)
+        btnDefs.push({
+          id: `btn-rot-${sys.innerFace}-ccw`,
+          wx: sys.cx + innerR * Math.cos(sys.apex + dAngIn),
+          wy: sys.cy + innerR * Math.sin(sys.apex + dAngIn)
+        });
+        btnDefs.push({
+          id: `btn-rot-${sys.innerFace}-cw`,
+          wx: sys.cx + innerR * Math.cos(sys.apex - dAngIn),
+          wy: sys.cy + innerR * Math.sin(sys.apex - dAngIn)
+        });
+        // Middle rings: angles chosen so no two buttons overlap and none sit on a bead
+        for (const ring of sys.middleRings) {
+          const r = RING_RADII[ring.coord];
+          const dAng = ring.deg * Math.PI / 180;
+          btnDefs.push({
+            id: `btn-rot-${ring.face}-ccw`,
+            wx: sys.cx + r * Math.cos(sys.apex + dAng),
+            wy: sys.cy + r * Math.sin(sys.apex + dAng)
+          });
+          btnDefs.push({
+            id: `btn-rot-${ring.face}-cw`,
+            wx: sys.cx + r * Math.cos(sys.apex - dAng),
+            wy: sys.cy + r * Math.sin(sys.apex - dAng)
+          });
+        }
+      }
+
+      for (const b of btnDefs) {
+        const el = document.getElementById(b.id);
+        if (!el) continue;
+        const ndcX = b.wx / halfW;
+        const ndcY = b.wy / halfH;
+        const px = (ndcX + 1) * 0.5 * leftW;
+        const py = (1 - ndcY) * 0.5 * topH;
+        el.style.left = `${px}px`;
+        el.style.top = `${py}px`;
+      }
+    }
+
+    document.querySelectorAll('.circle-rot-btn').forEach((btn) => {
+      // Hovering a button lights the ring it turns, in the button's own colour
+      btn.addEventListener('pointerenter', () => {
+        const ring = diagram.ringsOf(btn.dataset.face);
+        if (ring) diagram.setHoverRings(ring.axis, ring.slices, getComputedStyle(btn).borderTopColor);
+      });
+      btn.addEventListener('pointerleave', () => diagram.setHoverRings(null, [], null));
+      btn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        const face = btn.dataset.face;
+        const turns = parseInt(btn.dataset.turns, 10);
+        if (face && !isNaN(turns)) {
+          triggerUserMove({ face, turns }, 'circle:' + btn.id);
+        }
+      });
+    });
+
+    // ------------------------------------------------------------- 3D Cube Rotation Controls
+    let isCameraAnimating = false;
+    let cameraAnimStart = 0;
+    const cameraAnimDuration = 240; // ms
+    let startSpherical = { radius: 10, theta: 0, phi: 0 };
+    let targetSpherical = { radius: 10, theta: 0, phi: 0 };
+
+    function getCameraSpherical() {
+      const offset = new THREE.Vector3().subVectors(camera3D.position, controls.target);
+      const radius = offset.length();
+      const phi = Math.acos(THREE.MathUtils.clamp(offset.y / radius, -1, 1));
+      const theta = Math.atan2(offset.x, offset.z);
+      return { radius, theta, phi };
+    }
+
+    function setCameraFromSpherical(radius, theta, phi) {
+      camera3D.position.x = controls.target.x + radius * Math.sin(phi) * Math.sin(theta);
+      camera3D.position.y = controls.target.y + radius * Math.cos(phi);
+      camera3D.position.z = controls.target.z + radius * Math.sin(phi) * Math.cos(theta);
+      camera3D.lookAt(controls.target);
+      controls.update();
+    }
+
+    function rotateCubeView(dTheta, dPhi) {
+      const current = isCameraAnimating ? { ...targetSpherical } : getCameraSpherical();
+      const newTheta = current.theta + dTheta;
+      const newPhi = THREE.MathUtils.clamp(current.phi + dPhi, 0.28, Math.PI - 0.28);
+
+      startSpherical = getCameraSpherical();
+      targetSpherical = { radius: current.radius, theta: newTheta, phi: newPhi };
+      cameraAnimStart = performance.now();
+      isCameraAnimating = true;
+    }
+
+    function updateCameraRotationAnimation() {
+      if (!isCameraAnimating) return;
+      const elapsed = performance.now() - cameraAnimStart;
+      const progress = Math.min(1, elapsed / cameraAnimDuration);
+      const ease = 1 - Math.pow(1 - progress, 3);
+      const r = THREE.MathUtils.lerp(startSpherical.radius, targetSpherical.radius, ease);
+      const th = THREE.MathUtils.lerp(startSpherical.theta, targetSpherical.theta, ease);
+      const ph = THREE.MathUtils.lerp(startSpherical.phi, targetSpherical.phi, ease);
+      setCameraFromSpherical(r, th, ph);
+      if (progress >= 1) {
+        isCameraAnimating = false;
+      }
+    }
+
+    // ------------------------------------------------------------- 3D Controls (Corner, Edge & Face Modes)
+    const cornerArrowMeshes = [];
+    const edgeArrowMeshes = [];
+    const faceArrowMeshes = [];
+    const cornerControlsGroup = new THREE.Group();
+    const edgeControlsGroup = new THREE.Group();
+    const faceControlsGroup = new THREE.Group();
+    cube.root.add(cornerControlsGroup);
+    cube.root.add(edgeControlsGroup);
+    cube.root.add(faceControlsGroup);
+    cornerControlsGroup.visible = false;
+    edgeControlsGroup.visible = false;
+    faceControlsGroup.visible = true;
+
+    function create3DArrowTexture(dir) {
+      const canvas = document.createElement('canvas');
+      canvas.width = 128;
+      canvas.height = 128;
+      const ctx = canvas.getContext('2d');
+
+      ctx.beginPath();
+      ctx.arc(64, 64, 54, 0, Math.PI * 2);
+      ctx.fillStyle = 'rgba(14, 22, 20, 0.92)';
+      ctx.fill();
+
+      ctx.lineWidth = 6;
+      ctx.strokeStyle = '#ffd700';
+      ctx.shadowColor = '#ffd700';
+      ctx.shadowBlur = 10;
+      ctx.stroke();
+
+      ctx.shadowBlur = 4;
+      ctx.fillStyle = '#ffd700';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+
+      if (dir === 'up') {
+        ctx.font = 'bold 72px "Segoe UI Symbol", sans-serif';
+        ctx.fillText('▲', 64, 61);
+      } else if (dir === 'down') {
+        ctx.font = 'bold 72px "Segoe UI Symbol", sans-serif';
+        ctx.fillText('▼', 64, 67);
+      } else if (dir === 'left') {
+        ctx.font = 'bold 72px "Segoe UI Symbol", sans-serif';
+        ctx.fillText('◀', 61, 64);
+      } else if (dir === 'right') {
+        ctx.font = 'bold 72px "Segoe UI Symbol", sans-serif';
+        ctx.fillText('▶', 67, 64);
+      } else if (dir === 'cw') {
+        ctx.font = 'bold 76px "Segoe UI Symbol", sans-serif';
+        ctx.fillText('↻', 64, 64);
+      } else if (dir === 'ccw') {
+        ctx.font = 'bold 76px "Segoe UI Symbol", sans-serif';
+        ctx.fillText('↺', 64, 64);
+      }
+
+      const tex = new THREE.CanvasTexture(canvas);
+      tex.colorSpace = THREE.SRGBColorSpace;
+      return tex;
+    }
+
+    const arrowTextures = {
+      up: create3DArrowTexture('up'),
+      down: create3DArrowTexture('down'),
+      left: create3DArrowTexture('left'),
+      right: create3DArrowTexture('right'),
+      cw: create3DArrowTexture('cw'),
+      ccw: create3DArrowTexture('ccw')
+    };
+
+    const arrowMaterials = {
+      up: new THREE.MeshBasicMaterial({ map: arrowTextures.up, transparent: true, depthTest: true, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -4, polygonOffsetUnits: -4, side: THREE.FrontSide }),
+      down: new THREE.MeshBasicMaterial({ map: arrowTextures.down, transparent: true, depthTest: true, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -4, polygonOffsetUnits: -4, side: THREE.FrontSide }),
+      left: new THREE.MeshBasicMaterial({ map: arrowTextures.left, transparent: true, depthTest: true, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -4, polygonOffsetUnits: -4, side: THREE.FrontSide }),
+      right: new THREE.MeshBasicMaterial({ map: arrowTextures.right, transparent: true, depthTest: true, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -4, polygonOffsetUnits: -4, side: THREE.FrontSide }),
+      cw: new THREE.MeshBasicMaterial({ map: arrowTextures.cw, transparent: true, depthTest: true, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -4, polygonOffsetUnits: -4, side: THREE.FrontSide }),
+      ccw: new THREE.MeshBasicMaterial({ map: arrowTextures.ccw, transparent: true, depthTest: true, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -4, polygonOffsetUnits: -4, side: THREE.FrontSide })
+    };
+
+    const FACE_AXES = {
+      F: { n: new THREE.Vector3(0, 0, 1),  u: new THREE.Vector3(0, 1, 0),  r: new THREE.Vector3(1, 0, 0) },
+      B: { n: new THREE.Vector3(0, 0, -1), u: new THREE.Vector3(0, 1, 0),  r: new THREE.Vector3(-1, 0, 0) },
+      R: { n: new THREE.Vector3(1, 0, 0),  u: new THREE.Vector3(0, 1, 0),  r: new THREE.Vector3(0, 0, -1) },
+      L: { n: new THREE.Vector3(-1, 0, 0), u: new THREE.Vector3(0, 1, 0),  r: new THREE.Vector3(0, 0, 1) },
+      U: { n: new THREE.Vector3(0, 1, 0),  u: new THREE.Vector3(0, 0, -1), r: new THREE.Vector3(1, 0, 0) },
+      D: { n: new THREE.Vector3(0, -1, 0), u: new THREE.Vector3(0, 0, 1),  r: new THREE.Vector3(1, 0, 0) }
+    };
+
+    // The move behind every on-cube arrow is derived rather than tabulated: an
+    // arrow on cubie p pointing along in-plane direction d turns the layer
+    // through p about the axis perpendicular to both the face and d, in the
+    // direction whose motion at p is along d. For N = 3 this rule reproduces
+    // cubex3's hand-written tables exactly.
+    function arrowMove(faceNormal, p, d) {
+      const axisVec = new THREE.Vector3().crossVectors(faceNormal, d);
+      const axis = Math.abs(axisVec.x) > 0.5 ? 'X' : (Math.abs(axisVec.y) > 0.5 ? 'Y' : 'Z');
+      const key = layerKeyFor(axis, Math.round(p.dot(AXIS_UNIT[axis])));
+      const spec = layerSpec(key);
+      // motion of p under turns = +1, i.e. -90 degrees about the key's face normal
+      const v = new THREE.Vector3().crossVectors(spec.normal.clone().negate(), p);
+      return { face: key, turns: v.dot(d) > 0 ? 1 : -1 };
+    }
+
+    const cornerArrowOffset = 0.25;
+    const edgeArrowOffset = 0.22;
+    const faceDist = (N / 2) * PITCH + 0.005;   // just proud of the stickers
+    const arrowGeo = new THREE.PlaneGeometry(0.24, 0.24);
+
+    function addArrow(group, list, def, faceQuat) {
+      const mesh = new THREE.Mesh(arrowGeo, arrowMaterials[def.dir].clone());
+      mesh.position.copy(def.pos);
+      mesh.quaternion.copy(faceQuat);
+      mesh.renderOrder = 999;
+      mesh.userData = { face: def.move.face, turns: def.move.turns, dir: def.dir };
+      group.add(mesh);
+      list.push(mesh);
+    }
+
+    for (const fName of FACES) {
+      const axes = FACE_AXES[fName];
+      const rotMatrix = new THREE.Matrix4().makeBasis(axes.r, axes.u, axes.n);
+      const faceQuat = new THREE.Quaternion().setFromRotationMatrix(rotMatrix);
+      const faceCenter = axes.n.clone().multiplyScalar(faceDist);
+      const dirVec = {
+        up: axes.u, down: axes.u.clone().negate(),
+        left: axes.r.clone().negate(), right: axes.r,
+      };
+      // lattice cubie of this face at in-plane coords (a along r, b along u) ...
+      const cubie = (a, b) => axes.n.clone().multiplyScalar(EXT).addScaledVector(axes.r, a).addScaledVector(axes.u, b);
+      // ... and its sticker centre on the arrow plane
+      const at = (a, b) => faceCenter.clone()
+        .addScaledVector(axes.r, a * LATTICE_TO_WORLD)
+        .addScaledVector(axes.u, b * LATTICE_TO_WORLD);
+
+      // 1. Corner mode: an outward arrow on every border cubie, perpendicular
+      //    to its border; corners sit on two borders and get two. 4N per face.
+      for (const a of LAYER_COORDS) {
+        for (const [b, dir] of [[EXT, 'up'], [-EXT, 'down']]) {
+          const d = dirVec[dir];
+          addArrow(cornerControlsGroup, cornerArrowMeshes, {
+            dir, pos: at(a, b).addScaledVector(d, cornerArrowOffset), move: arrowMove(axes.n, cubie(a, b), d),
+          }, faceQuat);
+        }
+      }
+      for (const b of LAYER_COORDS) {
+        for (const [a, dir] of [[-EXT, 'left'], [EXT, 'right']]) {
+          const d = dirVec[dir];
+          addArrow(cornerControlsGroup, cornerArrowMeshes, {
+            dir, pos: at(a, b).addScaledVector(d, cornerArrowOffset), move: arrowMove(axes.n, cubie(a, b), d),
+          }, faceQuat);
+        }
+      }
+
+      // 2. Edge mode: arrows along the outer rows and columns, two per border,
+      //    turning the whole band - the same eight as on the 3x3.
+      const probe = LAYER_COORDS[0];
+      const levelDefs = [
+        ['left',  at(0,  EXT), axes.r, -1, cubie(probe,  EXT)],
+        ['right', at(0,  EXT), axes.r,  1, cubie(probe,  EXT)],
+        ['left',  at(0, -EXT), axes.r, -1, cubie(probe, -EXT)],
+        ['right', at(0, -EXT), axes.r,  1, cubie(probe, -EXT)],
+        ['up',    at(-EXT, 0), axes.u,  1, cubie(-EXT, probe)],
+        ['down',  at(-EXT, 0), axes.u, -1, cubie(-EXT, probe)],
+        ['up',    at( EXT, 0), axes.u,  1, cubie( EXT, probe)],
+        ['down',  at( EXT, 0), axes.u, -1, cubie( EXT, probe)],
+      ];
+      for (const [dir, base, along, sign, piece] of levelDefs) {
+        addArrow(edgeControlsGroup, edgeArrowMeshes, {
+          dir, pos: base.addScaledVector(along, sign * edgeArrowOffset), move: arrowMove(axes.n, piece, dirVec[dir]),
+        }, faceQuat);
+      }
+
+      // 3. Face mode: counter-clockwise / clockwise at the face centre.
+      addArrow(faceControlsGroup, faceArrowMeshes, {
+        dir: 'ccw', pos: faceCenter.clone().addScaledVector(axes.r, -0.28).addScaledVector(axes.u, 0.28),
+        move: { face: fName, turns: -1 },
+      }, faceQuat);
+      addArrow(faceControlsGroup, faceArrowMeshes, {
+        dir: 'cw', pos: faceCenter.clone().addScaledVector(axes.r, 0.28).addScaledVector(axes.u, -0.28),
+        move: { face: fName, turns: 1 },
+      }, faceQuat);
+    }
+
+    function updateCubeControlsWidgetVisibility() {
+      const widget = document.getElementById('cubeControlsWidget');
+      if (!widget) return;
+      widget.classList.remove('view-cube', 'view-circles');
+      if (viewMode === 'cube') {
+        widget.classList.add('view-cube');
+      } else if (viewMode === 'circles') {
+        widget.classList.add('view-circles');
+      }
+    }
+
+    const raycaster = new THREE.Raycaster();
+    let hoveredArrow = null;
+    let currentControlMode = 'face';
+
+    function setCubeControlMode(mode) {
+      currentControlMode = mode;
+      cornerControlsGroup.visible = (mode === 'corner');
+      edgeControlsGroup.visible = (mode === 'level');
+      faceControlsGroup.visible = (mode === 'face');
+
+      if (hoveredArrow) {
+        hoveredArrow.scale.set(1, 1, 1);
+        hoveredArrow = null;
+      }
+      renderer.domElement.style.cursor = 'default';
+
+      document.getElementById('btnCtrlHide')?.classList.toggle('active', mode === 'none');
+      document.getElementById('btnCtrlCorner')?.classList.toggle('active', mode === 'corner');
+      document.getElementById('btnCtrlLevel')?.classList.toggle('active', mode === 'level');
+      document.getElementById('btnCtrlFace')?.classList.toggle('active', mode === 'face');
+
+      document.getElementById('hudBtnCtrlHide')?.classList.toggle('active', mode === 'none');
+      document.getElementById('hudBtnCtrlCorner')?.classList.toggle('active', mode === 'corner');
+      document.getElementById('hudBtnCtrlLevel')?.classList.toggle('active', mode === 'level');
+      document.getElementById('hudBtnCtrlFace')?.classList.toggle('active', mode === 'face');
+    }
+
+    document.getElementById('btnCtrlHide')?.addEventListener('click', () => setCubeControlMode('none'));
+    document.getElementById('btnCtrlCorner')?.addEventListener('click', () => setCubeControlMode('corner'));
+    document.getElementById('btnCtrlLevel')?.addEventListener('click', () => setCubeControlMode('level'));
+    document.getElementById('btnCtrlFace')?.addEventListener('click', () => setCubeControlMode('face'));
+
+    document.getElementById('hudBtnCtrlHide')?.addEventListener('click', () => setCubeControlMode('none'));
+    document.getElementById('hudBtnCtrlCorner')?.addEventListener('click', () => setCubeControlMode('corner'));
+    document.getElementById('hudBtnCtrlLevel')?.addEventListener('click', () => setCubeControlMode('level'));
+    document.getElementById('hudBtnCtrlFace')?.addEventListener('click', () => setCubeControlMode('face'));
+
+    setCubeControlMode('face');
+
+    function get3DMouseNDC(clientX, clientY) {
+      const w = window.innerWidth;
+      const h = window.innerHeight;
+      const topH = Math.floor(h * 0.50);
+      let vpLeft = 0, vpTop = 0, vpW = w, vpH = topH;
+      if (viewMode === 'both') {
+        const leftW = Math.floor(w * 0.50);
+        vpLeft = leftW;
+        vpTop = 0;
+        vpW = w - leftW;
+        vpH = topH;
+      } else if (viewMode === 'circles') {
+        return null;
+      }
+      if (clientX < vpLeft || clientX > vpLeft + vpW || clientY < vpTop || clientY > vpTop + vpH) {
+        return null;
+      }
+      const ndcX = ((clientX - vpLeft) / vpW) * 2 - 1;
+      const ndcY = -((clientY - vpTop) / vpH) * 2 + 1;
+      return new THREE.Vector2(ndcX, ndcY);
+    }
+
+    renderer.domElement.addEventListener('pointermove', (e) => {
+      if (viewMode === 'circles' || currentControlMode === 'none') {
+        if (hoveredArrow) {
+          hoveredArrow.scale.set(1, 1, 1);
+          hoveredArrow = null;
+        }
+        renderer.domElement.style.cursor = 'default';
+        return;
+      }
+      const ndc = get3DMouseNDC(e.clientX, e.clientY);
+      if (!ndc) {
+        if (hoveredArrow) {
+          hoveredArrow.scale.set(1, 1, 1);
+          hoveredArrow = null;
+        }
+        renderer.domElement.style.cursor = 'default';
+        return;
+      }
+
+      raycaster.setFromCamera(ndc, camera3D);
+      const targetMeshes = (currentControlMode === 'corner') ? cornerArrowMeshes :
+                           (currentControlMode === 'level') ? edgeArrowMeshes :
+                           (currentControlMode === 'face') ? faceArrowMeshes : [];
+      const hits = raycaster.intersectObjects(targetMeshes);
+      if (hits.length > 0) {
+        const topHit = hits[0].object;
+        if (hoveredArrow !== topHit) {
+          if (hoveredArrow) hoveredArrow.scale.set(1, 1, 1);
+          hoveredArrow = topHit;
+          hoveredArrow.scale.set(1.22, 1.22, 1);
+        }
+        renderer.domElement.style.cursor = 'pointer';
+      } else {
+        if (hoveredArrow) {
+          hoveredArrow.scale.set(1, 1, 1);
+          hoveredArrow = null;
+        }
+        renderer.domElement.style.cursor = 'default';
+      }
+    });
+
+    let pointerDownPos = { x: 0, y: 0 };
+    renderer.domElement.addEventListener('pointerdown', (e) => {
+      pointerDownPos = { x: e.clientX, y: e.clientY };
+      if (viewMode === 'both') {
+        const leftW = Math.floor(window.innerWidth * 0.50);
+        const topH = Math.floor(window.innerHeight * 0.50);
+        if (e.clientX < leftW || e.clientY > topH) {
+          controls.enabled = false;
+          return;
+        }
+      } else if (viewMode === 'circles') {
+        controls.enabled = false;
+        return;
+      }
+      controls.enabled = true;
+    });
+
+    window.addEventListener('pointerup', () => {
+      controls.enabled = true;
+    });
+
+    renderer.domElement.addEventListener('pointerup', (e) => {
+      if (e.button !== 0 && e.button !== undefined) return;
+      if (viewMode === 'circles' || currentControlMode === 'none') return;
+      const dist = Math.hypot(e.clientX - pointerDownPos.x, e.clientY - pointerDownPos.y);
+      if (dist > 6) return;
+
+      const ndc = get3DMouseNDC(e.clientX, e.clientY);
+      if (!ndc) return;
+
+      raycaster.setFromCamera(ndc, camera3D);
+      const targetMeshes = (currentControlMode === 'corner') ? cornerArrowMeshes :
+                           (currentControlMode === 'level') ? edgeArrowMeshes :
+                           (currentControlMode === 'face') ? faceArrowMeshes : [];
+      const hits = raycaster.intersectObjects(targetMeshes);
+      if (hits.length > 0) {
+        e.stopPropagation();
+        const { face, turns } = hits[0].object.userData;
+        if (face && turns) {
+          triggerUserMove({ face, turns }, 'arrow:' + hits[0].object.uuid);
+        }
+      }
+    });
+
+    renderer.domElement.addEventListener('pointerleave', () => {
+      if (hoveredArrow) {
+        hoveredArrow.scale.set(1, 1, 1);
+        hoveredArrow = null;
+      }
+      renderer.domElement.style.cursor = 'default';
+    });
+
+    // ------------------------------------------------------------- Viewport Rendering Loop
+    function drawViewport(x, y, w, h, scene, camera) {
+      renderer.setViewport(x, y, w, h);
+      renderer.setScissor(x, y, w, h);
+      renderer.setScissorTest(true);
+      renderer.render(scene, camera);
+    }
+
+    const clock = new THREE.Clock();
+
+    function animate() {
+      requestAnimationFrame(animate);
+
+      const dt = Math.min(clock.getDelta(), 0.05);
+      engine.update(dt);
+      if (isCameraAnimating) updateCameraRotationAnimation();
+      controls.update();
+
+      const w = window.innerWidth;
+      const h = window.innerHeight;
+
+      renderer.setScissorTest(false);
+      renderer.clear();
+
+      const topH = Math.floor(h * 0.50);
+      const btmH = h - topH;
+      const leftW = Math.floor(w * 0.50);
+      const rightW = w - leftW;
+
+      if (viewMode === 'both') {
+        // Top-Left: 2D Three-Ring Projection
+        drawViewport(0, btmH, leftW, topH, diagram.scene, diagram.camera);
+        // Top-Right: 3D Solid Rubik's Cube
+        drawViewport(leftW, btmH, rightW, topH, scene3D, camera3D);
+      } else if (viewMode === 'cube') {
+        drawViewport(0, btmH, w, topH, scene3D, camera3D);
+      } else if (viewMode === 'circles') {
+        drawViewport(0, btmH, w, topH, diagram.scene, diagram.camera);
+      }
+    }
+
+    function onResize() {
+      const w = window.innerWidth;
+      const h = window.innerHeight;
+      renderer.setSize(w, h);
+
+      const topH = Math.floor(h * 0.50);
+      const leftW = Math.floor(w * 0.50);
+      const rightW = w - leftW;
+
+      if (viewMode === 'both') {
+        camera3D.aspect = rightW / topH;
+        diagram.resize(leftW, topH);
+      } else if (viewMode === 'cube') {
+        camera3D.aspect = w / topH;
+        diagram.resize(w, topH);
+      } else if (viewMode === 'circles') {
+        camera3D.aspect = w / topH;
+        diagram.resize(w, topH);
+      }
+      camera3D.updateProjectionMatrix();
+      updateCircleControlsPosition();
+    }
+
+    window.addEventListener('resize', () => {
+      onResize();
+    });
+    onResize();
+    animate();
+
+    // Console API
+    window.cube = {
+      cube,
+      diagram,
+      engine,
+      push: (moves) => engine.pushSequence(moves.trim().split(/\s+/)),
+      scramble: (n) => engine.scramble(n),
+      solve: () => engine.solve(),
+    };
+  </script>
+</body>
+</html>

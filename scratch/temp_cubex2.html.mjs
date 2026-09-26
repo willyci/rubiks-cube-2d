@@ -19,6 +19,45 @@
       L: 0xe07a20, // Orange
     };
 
+    const FACE_HEX_STRINGS = {
+      U: '#f5f5f5',
+      D: '#f7d91a',
+      F: '#1fa04a',
+      B: '#1663c7',
+      R: '#d6262b',
+      L: '#e07a20',
+    };
+
+    const OPPOSITE_FACES = {
+      U: 'D',
+      D: 'U',
+      F: 'B',
+      B: 'F',
+      R: 'L',
+      L: 'R',
+    };
+
+    const FACE_SYMBOLS = {
+      U: 'circle',
+      D: 'dot',
+      F: 'cross',
+      B: 'triangle',
+      R: 'square',
+      L: 'star',
+    };
+
+    // Maximum contrast symbol colors:
+    // Light backgrounds (White, Yellow) -> Black symbol (#111111)
+    // Dark / saturated backgrounds (Green, Blue, Red, Orange) -> White symbol (#ffffff)
+    const SYMBOL_COLORS = {
+      U: '#111111',
+      D: '#111111',
+      F: '#ffffff',
+      B: '#ffffff',
+      R: '#ffffff',
+      L: '#ffffff',
+    };
+
     const FACES = ['U', 'D', 'F', 'B', 'R', 'L'];
 
     const NORMALS = {
@@ -42,7 +81,7 @@
       D: 0.82,       // distance from origin to circle centers
       r0: 1.0,       // base radius of middle ring
       delta: 0.12,   // spacing between inner and outer rings
-      beadSize: 0.14,
+      beadSize: 0.21, // 1.5x bigger (0.14 * 1.5)
       frustum: 2.38,
     };
 
@@ -140,6 +179,129 @@
     }
 
     // ------------------------------------------------------------- Textures & Sprites
+    /**
+     * Draw accessible geometric symbol on canvas with maximum contrast:
+     * - U (White): bold black circle (○)
+     * - D (Yellow): bold black single big dot (●)
+     * - F (Green): bold white cross (✚)
+     * - B (Blue): bold white triangle (△)
+     * - R (Red): bold white square (□)
+     * - L (Orange): bold white star (★)
+     */
+    function drawFaceSymbol(ctx, face, cx, cy, radius) {
+      ctx.save();
+      const fgColor = SYMBOL_COLORS[face] || '#ffffff';
+      const isBlack = (fgColor === '#111111');
+      const shadowColor = isBlack ? 'rgba(0, 0, 0, 0.15)' : 'rgba(0, 0, 0, 0.6)';
+
+      if (face === 'U') {
+        // Circle (outline)
+        const r = radius * 0.62;
+        ctx.lineWidth = 11;
+        ctx.strokeStyle = fgColor; // Deep black
+        ctx.beginPath();
+        ctx.arc(cx, cy, r, 0, Math.PI * 2);
+        ctx.stroke();
+      } else if (face === 'D') {
+        // Single big dot (solid disc)
+        const r = radius * 0.58;
+        ctx.fillStyle = fgColor; // Deep black
+        ctx.beginPath();
+        ctx.arc(cx, cy, r, 0, Math.PI * 2);
+        ctx.fill();
+      } else if (face === 'F') {
+        // Cross (✚)
+        const arm = radius * 0.68;
+        ctx.lineCap = 'round';
+        ctx.lineWidth = 15;
+        ctx.strokeStyle = shadowColor;
+        ctx.beginPath();
+        ctx.moveTo(cx - arm, cy); ctx.lineTo(cx + arm, cy);
+        ctx.moveTo(cx, cy - arm); ctx.lineTo(cx, cy + arm);
+        ctx.stroke();
+
+        ctx.lineWidth = 9;
+        ctx.strokeStyle = fgColor; // Pure white
+        ctx.beginPath();
+        ctx.moveTo(cx - arm, cy); ctx.lineTo(cx + arm, cy);
+        ctx.moveTo(cx, cy - arm); ctx.lineTo(cx, cy + arm);
+        ctx.stroke();
+      } else if (face === 'B') {
+        // Triangle (△)
+        const h = radius * 0.72;
+        const w = radius * 0.72;
+        const p1 = { x: cx, y: cy - h * 0.78 };
+        const p2 = { x: cx - w * 0.86, y: cy + h * 0.62 };
+        const p3 = { x: cx + w * 0.86, y: cy + h * 0.62 };
+        ctx.lineJoin = 'round';
+        ctx.lineCap = 'round';
+        ctx.lineWidth = 15;
+        ctx.strokeStyle = shadowColor;
+        ctx.beginPath();
+        ctx.moveTo(p1.x, p1.y); ctx.lineTo(p2.x, p2.y); ctx.lineTo(p3.x, p3.y);
+        ctx.closePath();
+        ctx.stroke();
+
+        ctx.lineWidth = 9;
+        ctx.strokeStyle = fgColor; // Pure white
+        ctx.beginPath();
+        ctx.moveTo(p1.x, p1.y); ctx.lineTo(p2.x, p2.y); ctx.lineTo(p3.x, p3.y);
+        ctx.closePath();
+        ctx.stroke();
+      } else if (face === 'R') {
+        // Square (□)
+        const half = radius * 0.52;
+        const r = 5;
+        ctx.lineJoin = 'round';
+        function roundRect(x, y, w, h, rad) {
+          ctx.beginPath();
+          ctx.moveTo(x + rad, y);
+          ctx.arcTo(x + w, y, x + w, y + h, rad);
+          ctx.arcTo(x + w, y + h, x, y + h, rad);
+          ctx.arcTo(x, y + h, x, y, rad);
+          ctx.arcTo(x, y, x + w, y, rad);
+          ctx.closePath();
+        }
+        ctx.lineWidth = 15;
+        ctx.strokeStyle = shadowColor;
+        roundRect(cx - half, cy - half, half * 2, half * 2, r);
+        ctx.stroke();
+
+        ctx.lineWidth = 9;
+        ctx.strokeStyle = fgColor; // Pure white
+        roundRect(cx - half, cy - half, half * 2, half * 2, r);
+        ctx.stroke();
+      } else if (face === 'L') {
+        // Star (★)
+        const outerR = radius * 0.72;
+        const innerR = radius * 0.32;
+        function starPath() {
+          ctx.beginPath();
+          for (let i = 0; i < 10; i++) {
+            const r = (i % 2 === 0) ? outerR : innerR;
+            const a = (i * Math.PI / 5) - Math.PI / 2;
+            const x = cx + Math.cos(a) * r;
+            const y = cy + Math.sin(a) * r;
+            if (i === 0) ctx.moveTo(x, y);
+            else ctx.lineTo(x, y);
+          }
+          ctx.closePath();
+        }
+        starPath();
+        ctx.lineWidth = 6;
+        ctx.strokeStyle = shadowColor;
+        ctx.stroke();
+
+        starPath();
+        ctx.fillStyle = fgColor; // Pure white
+        ctx.fill();
+        ctx.lineWidth = 2;
+        ctx.strokeStyle = shadowColor;
+        ctx.stroke();
+      }
+      ctx.restore();
+    }
+
     /** Glossy 3D-shaded bead sprite */
     function createBeadTexture() {
       const s = 128;
@@ -161,7 +323,36 @@
       return tex;
     }
 
-    /** Rounded sticker texture for 3D cubies */
+    /** Flat color-blind bead texture: solid flat color disc with no 3D gradient or glossy effect */
+    function createColorBlindBeadTexture(face) {
+      const s = 128;
+      const c = document.createElement('canvas');
+      c.width = c.height = s;
+      const g = c.getContext('2d');
+
+      const baseColor = FACE_HEX_STRINGS[face];
+      const r = s * 0.47;
+
+      // Flat solid circle in face color
+      g.fillStyle = baseColor;
+      g.beginPath();
+      g.arc(s / 2, s / 2, r, 0, Math.PI * 2);
+      g.fill();
+
+      // Clean subtle edge stroke for crisp shape boundary
+      g.strokeStyle = 'rgba(0, 0, 0, 0.25)';
+      g.lineWidth = 3;
+      g.stroke();
+
+      // High contrast flat symbol
+      drawFaceSymbol(g, face, s / 2, s / 2, s * 0.40);
+
+      const tex = new THREE.CanvasTexture(c);
+      tex.colorSpace = THREE.SRGBColorSpace;
+      return tex;
+    }
+
+    /** Rounded sticker texture for 3D cubies (clean white mask) */
     function createStickerTexture() {
       const s = 128;
       const c = document.createElement('canvas');
@@ -183,6 +374,37 @@
       return tex;
     }
 
+    /** Rounded sticker texture with face color and high-contrast symbol for 3D cubies */
+    function createColorBlindStickerTexture(face) {
+      const s = 128;
+      const c = document.createElement('canvas');
+      c.width = c.height = s;
+      const g = c.getContext('2d');
+      const r = s * 0.18;
+      const p = s * 0.06;
+
+      g.fillStyle = FACE_HEX_STRINGS[face];
+      g.beginPath();
+      g.moveTo(p + r, p);
+      g.arcTo(s - p, p, s - p, s - p, r);
+      g.arcTo(s - p, s - p, p, s - p, r);
+      g.arcTo(p, s - p, p, p, r);
+      g.arcTo(p, p, s - p, p, r);
+      g.closePath();
+      g.fill();
+
+      // Subtle inner rim border for premium finish
+      g.strokeStyle = 'rgba(0, 0, 0, 0.2)';
+      g.lineWidth = 3;
+      g.stroke();
+
+      drawFaceSymbol(g, face, s / 2, s / 2, s * 0.44);
+
+      const tex = new THREE.CanvasTexture(c);
+      tex.colorSpace = THREE.SRGBColorSpace;
+      return tex;
+    }
+
     // ------------------------------------------------------------- 3D Solid 2x2 Rubik's Cube
     class RubiksCube {
       constructor() {
@@ -192,12 +414,34 @@
         this.views = [];
 
         this._stickerTex = createStickerTexture();
+        this._colorBlindStickerTex = {};
+        for (const f of FACES) {
+          this._colorBlindStickerTex[f] = createColorBlindStickerTexture(f);
+        }
+        this._isColorBlind = false;
+
         this._build();
       }
 
       addView(view) {
         this.views.push(view);
         view.sync();
+      }
+
+      setColorBlindMode(enabled) {
+        this._isColorBlind = !!enabled;
+        for (const f of FACES) {
+          if (this.stickerMats[f]) {
+            if (this._isColorBlind) {
+              this.stickerMats[f].map = this._colorBlindStickerTex[f];
+              this.stickerMats[f].color.setHex(0xffffff);
+            } else {
+              this.stickerMats[f].map = this._stickerTex;
+              this.stickerMats[f].color.setHex(COLORS[f]);
+            }
+            this.stickerMats[f].needsUpdate = true;
+          }
+        }
       }
 
       _build() {
@@ -209,11 +453,11 @@
         });
         const stickerGeo = new THREE.PlaneGeometry(0.84, 0.84);
 
-        const stickerMats = {};
+        this.stickerMats = {};
         for (const f of FACES) {
-          stickerMats[f] = new THREE.MeshStandardMaterial({
-            color: COLORS[f],
-            map: this._stickerTex,
+          this.stickerMats[f] = new THREE.MeshStandardMaterial({
+            color: this._isColorBlind ? 0xffffff : COLORS[f],
+            map: this._isColorBlind ? this._colorBlindStickerTex[f] : this._stickerTex,
             transparent: true,
             alphaTest: 0.35,
             roughness: 0.38,
@@ -239,7 +483,7 @@
                 const n = NORMALS[f];
                 if (home.dot(n) !== 1) continue;
 
-                const mesh = new THREE.Mesh(stickerGeo, stickerMats[f]);
+                const mesh = new THREE.Mesh(stickerGeo, this.stickerMats[f]);
                 mesh.position.copy(n).multiplyScalar(0.501);
                 mesh.lookAt(mesh.position.clone().add(n));
                 solid.add(mesh);
@@ -271,12 +515,20 @@
       }
 
       layerPieces(face) {
+        if (face === 'M') return this.pieces.filter((p) => p.coord.x === -1);
+        if (face === 'E') return this.pieces.filter((p) => p.coord.y === -1);
+        if (face === 'S') return this.pieces.filter((p) => p.coord.z === 1);
         const n = NORMALS[face];
         return this.pieces.filter((p) => p.coord.dot(n) === 1);
       }
 
       beginMove(face, turns) {
-        const axis = NORMALS[face];
+        let axis;
+        if (face === 'M') axis = NORMALS.L;
+        else if (face === 'E') axis = NORMALS.D;
+        else if (face === 'S') axis = NORMALS.F;
+        else axis = NORMALS[face];
+
         const angle = (-Math.PI / 2) * turns;
         const members = this.layerPieces(face);
 
@@ -286,6 +538,7 @@
 
         const subs = this.views.map((v) => v.beginMove(face, turns));
 
+        let isFinished = false;
         return {
           face,
           turns,
@@ -294,10 +547,12 @@
             subs.forEach((s) => s.setProgress(t));
           },
           finish: () => {
+            if (isFinished) return;
+            isFinished = true;
             for (const p of members) {
               this.root.attach(p.solid);
               p.coord.applyAxisAngle(axis, angle).round();
-              p.quat.premultiply(new THREE.Quaternion().setFromAxisAngle(axis, angle));
+              p.quat.premultiply(new THREE.Quaternion().setFromAxisAngle(axis, angle)).normalize();
               this._placePiece(p);
             }
             this.root.remove(pivot);
@@ -307,14 +562,20 @@
       }
 
       applyMove(face, turns) {
-        const norm = NORMALS[face];
+        let norm;
+        let layerCoordCheck;
+        if (face === 'M') { norm = NORMALS.L; layerCoordCheck = (c) => c.x === -1; }
+        else if (face === 'E') { norm = NORMALS.D; layerCoordCheck = (c) => c.y === -1; }
+        else if (face === 'S') { norm = NORMALS.F; layerCoordCheck = (c) => c.z === 1; }
+        else { norm = NORMALS[face]; layerCoordCheck = (c) => c.dot(norm) === 1; }
+
         const angle = -turns * (Math.PI / 2);
         const q = new THREE.Quaternion().setFromAxisAngle(norm, angle);
 
         for (const p of this.pieces) {
-          if (p.coord.dot(norm) === 1) {
+          if (layerCoordCheck(p.coord)) {
             p.coord.applyQuaternion(q).round();
-            p.quat.premultiply(q);
+            p.quat.premultiply(q).normalize();
             this._placePiece(p);
           }
         }
@@ -349,6 +610,13 @@
         this.camera = new THREE.OrthographicCamera(-1, 1, 1, -1, 0.1, 20);
         this.camera.position.set(0, 0, 5);
 
+        this._defaultBeadTex = createBeadTexture();
+        this._colorBlindBeadTex = {};
+        for (const f of FACES) {
+          this._colorBlindBeadTex[f] = createColorBlindBeadTexture(f);
+        }
+        this._isColorBlind = false;
+
         this.rings = []; // { axis, slice, line, glowLine, mat, glowMat, center, radius }
         this.dots = new Map(); // sticker -> Mesh
         this.activeMove = null;
@@ -356,6 +624,22 @@
         this._buildRings();
         this._buildDots();
         this.resize(window.innerWidth, window.innerHeight);
+      }
+
+      setColorBlindMode(enabled) {
+        this._isColorBlind = !!enabled;
+        for (const f of FACES) {
+          if (this.beadMats[f]) {
+            if (this._isColorBlind) {
+              this.beadMats[f].map = this._colorBlindBeadTex[f];
+              this.beadMats[f].color.setHex(0xffffff);
+            } else {
+              this.beadMats[f].map = this._defaultBeadTex;
+              this.beadMats[f].color.setHex(COLORS[f]);
+            }
+            this.beadMats[f].needsUpdate = true;
+          }
+        }
       }
 
       _buildRings() {
@@ -401,22 +685,18 @@
 
       _buildDots() {
         const geo = new THREE.PlaneGeometry(RING_CONFIG.beadSize, RING_CONFIG.beadSize);
-        const tex = createBeadTexture();
-        const mats = new Map();
+        this.beadMats = {};
+        for (const f of FACES) {
+          this.beadMats[f] = new THREE.MeshBasicMaterial({
+            color: this._isColorBlind ? 0xffffff : COLORS[f],
+            map: this._isColorBlind ? this._colorBlindBeadTex[f] : this._defaultBeadTex,
+            transparent: true,
+            depthWrite: false,
+          });
+        }
 
         for (const sticker of this.cube.stickers) {
-          if (!mats.has(sticker.color)) {
-            mats.set(
-              sticker.color,
-              new THREE.MeshBasicMaterial({
-                color: sticker.color,
-                map: tex,
-                transparent: true,
-                depthWrite: false,
-              })
-            );
-          }
-          const mesh = new THREE.Mesh(geo, mats.get(sticker.color));
+          const mesh = new THREE.Mesh(geo, this.beadMats[sticker.home]);
           mesh.position.z = 0.05;
           this.scene.add(mesh);
           this.dots.set(sticker, mesh);
@@ -456,7 +736,11 @@
       /**
        * Start 2D animation for turn.
        * Lights up the active ring in orange.
-       * All balls on the same circle ALWAYS move in the exact same direction.
+       * Every bead on the active ring travels the same way round it, which is
+       * what keeps the flow readable. The arc lengths differ, though: the rest
+       * positions are circle-circle intersections and those are not evenly
+       * spaced, so a bead crossing the wide gap sweeps much further than its
+       * neighbours in the same quarter turn.
        */
       beginMove(face, turns) {
         const axisMap = {
@@ -466,25 +750,39 @@
           L: { axis: 'X', slice: -1 },
           F: { axis: 'Z', slice: 1 },
           B: { axis: 'Z', slice: -1 },
+          M: { axis: 'X', slice: -1 },
+          E: { axis: 'Y', slice: -1 },
+          S: { axis: 'Z', slice: 1 },
         };
 
-        const { axis, slice } = axisMap[face];
+        const { axis, slice } = axisMap[face] || axisMap.U;
         this.setRingHighlight(axis, slice, true);
 
-        const normal = NORMALS[face];
+        let normal;
+        if (face === 'M') normal = NORMALS.L;
+        else if (face === 'E') normal = NORMALS.D;
+        else if (face === 'S') normal = NORMALS.F;
+        else normal = NORMALS[face];
+
         const q = new THREE.Quaternion().setFromAxisAngle(normal, (-Math.PI / 2) * turns);
         const ringCenter = RING_CENTERS[axis];
         const ringRadius = RING_RADII[slice];
-        const faceCenter = FACE_CENTERS[face];
+        const layerFace = (face === 'M') ? 'L' : (face === 'E') ? 'D' : (face === 'S') ? 'F' : face;
+        const faceCenter = FACE_CENTERS[layerFace];
 
-        const baseSign = (face === 'U' || face === 'R' || face === 'F') ? 1 : -1;
+        const baseSign = (face === 'U' || face === 'R' || face === 'F' || face === 'S') ? -1 : 1;
         const moveDir = baseSign * turns;
 
         const animatedItems = [];
 
         for (const sticker of this.cube.stickers) {
           const coord = sticker.piece.coord;
-          if (coord.dot(normal) !== 1) continue; // Not in this layer
+          let inLayer;
+          if (face === 'M') inLayer = (coord.x === -1);
+          else if (face === 'E') inLayer = (coord.y === -1);
+          else if (face === 'S') inLayer = (coord.z === 1);
+          else inLayer = (coord.dot(normal) === 1);
+          if (!inLayer) continue;
 
           const mesh = this.dots.get(sticker);
           const fromFace = this.cube.stickerFace(sticker);
@@ -495,7 +793,7 @@
           const toFace = faceOfNormal(nextNormal);
           const endPos = calculateRestPosition(toFace, nextCoord);
 
-          if (fromFace === face && toFace === face) {
+          if (fromFace === layerFace && toFace === layerFace) {
             // Bead on the face itself: rotate around face center
             const vStart = new THREE.Vector2().subVectors(startPos, faceCenter);
             const r = vStart.length();
@@ -504,7 +802,8 @@
             const theta1 = Math.atan2(vEnd.y, vEnd.x);
 
             let dTheta = theta1 - theta0;
-            if (turns > 0) {
+            const faceDir = (face === 'M' || face === 'E') ? turns : -turns;
+            if (faceDir > 0) {
               while (dTheta <= 0) dTheta += Math.PI * 2;
               while (dTheta > Math.PI * 2) dTheta -= Math.PI * 2;
             } else {
@@ -552,6 +851,7 @@
           }
         }
 
+        let isFinished = false;
         return {
           setProgress: (t) => {
             for (const item of animatedItems) {
@@ -561,6 +861,8 @@
             }
           },
           finish: () => {
+            if (isFinished) return;
+            isFinished = true;
             this.setRingHighlight(axis, slice, false);
             this.sync();
           },
@@ -569,6 +871,10 @@
     }
 
     // ------------------------------------------------------------- Move Engine & Animation Queue
+    // A generous backlog: enough that normal fast clicking is never dropped,
+    // capped so a stuck control cannot grow the queue without bound.
+    const MAX_USER_QUEUE = 64;
+
     class MoveEngine {
       constructor(cube) {
         this.cube = cube;
@@ -579,10 +885,61 @@
         this.isScrambling = false;
         this.onMove = null;
         this.onHistoryChange = null;
+        this.onQueueFull = null;
+      }
+
+      /** True while a turn is animating or any move is still queued. */
+      get busy() {
+        return this.active !== null || this.queue.length > 0;
       }
 
       push(move, source = 'user') {
+        if (!move) return false;
+        // Cap the backlog so a stuck control cannot freeze the page - but say
+        // so, instead of dropping the move silently.
+        if (source === 'user' && this.queue.length >= MAX_USER_QUEUE) {
+          if (this.onQueueFull) this.onQueueFull(this.queue.length);
+          return false;
+        }
         this.queue.push({ ...move, source });
+        return true;
+      }
+
+      /**
+       * Record a move that has just been applied to the cube. `history` is the
+       * app's only model of the cube's state, so it may only be written when
+       * the cube actually moves - never in advance of it.
+       */
+      _recordFinished(move) {
+        if (move.source === 'user' || move.source === 'scramble') {
+          this.history.push({ face: move.face, turns: move.turns });
+        } else if (move.source === 'rollback' && Number.isInteger(move.retires)) {
+          // This move has just undone history[move.retires]; only now is it
+          // safe to forget that entry.
+          if (this.history.length > move.retires) this.history.length = move.retires;
+        }
+        if (this.onHistoryChange) this.onHistoryChange();
+      }
+
+      /**
+       * Bring the cube up to date with everything the user already asked for:
+       * land the turn in flight, then apply whatever is still queued. Nothing
+       * the user clicked is thrown away, and history stays truthful throughout.
+       */
+      flushPending() {
+        if (this.active) {
+          const move = this.active.move;
+          this.active.handle.setProgress(1);
+          this.active.handle.finish();
+          this.active = null;
+          this._recordFinished(move);
+        }
+        while (this.queue.length) {
+          const m = this.queue.shift();
+          this.cube.applyMove(m.face, m.turns);
+          this._recordFinished(m);
+        }
+        this.isScrambling = false;
       }
 
       pushSequence(tokens, source = 'user') {
@@ -613,7 +970,26 @@
         return { face: m.face, turns };
       }
 
+      /**
+       * Start over. The empty history has to mean "solved", so the cube is
+       * returned with it - otherwise every later Solve and every generated
+       * algorithm would be computed against a cube that no longer matches.
+       */
+      clear() {
+        this.queue.length = 0;
+        this.isScrambling = false;
+        if (this.active) {
+          this.active.handle.setProgress(1);
+          this.active.handle.finish();
+          this.active = null;
+        }
+        this.history.length = 0;
+        this.cube.reset();
+        if (this.onHistoryChange) this.onHistoryChange();
+      }
+
       scramble(seqOrLength = 12) {
+        this.clear();
         this.isScrambling = true;
         if (typeof seqOrLength === 'string') {
           const tokens = seqOrLength.trim().split(/\s+/).map((s) => this.parseMove(s));
@@ -636,17 +1012,20 @@
 
       fastFinishScramble() {
         if (!this.isScrambling) return;
-        if (this.active && this.active.move.source === 'scramble') {
+        // The turn in flight comes before anything queued, so it has to land
+        // first or the scramble composes in the wrong order.
+        if (this.active) {
+          const move = this.active.move;
           this.active.handle.setProgress(1);
           this.active.handle.finish();
-          this.history.push({ face: this.active.move.face, turns: this.active.move.turns });
           this.active = null;
+          this._recordFinished(move);
         }
         const remainingQueue = [];
         for (const m of this.queue) {
           if (m.source === 'scramble') {
             this.cube.applyMove(m.face, m.turns);
-            this.history.push({ face: m.face, turns: m.turns });
+            this._recordFinished(m);
           } else {
             remainingQueue.push(m);
           }
@@ -655,53 +1034,32 @@
         this.isScrambling = false;
       }
 
+      /**
+       * Walk the cube back to `targetCount` recorded moves by queueing the
+       * inverse of every entry above it. Each queued move carries the index it
+       * retires, and history shrinks only when that move actually lands - so
+       * interrupting a rollback can never strand the cube with a history that
+       * no longer describes it.
+       */
       rollbackTo(targetCount) {
-        if (this.isScrambling) this.fastFinishScramble();
-        if (this.active) {
-          this.active.handle.setProgress(1);
-          this.active.handle.finish();
-          if (this.active.move.source === 'user' || this.active.move.source === 'scramble') {
-            this.history.push({ face: this.active.move.face, turns: this.active.move.turns });
-          }
-          this.active = null;
-        }
-        this.queue.length = 0;
-
+        this.flushPending();
         const currentLen = this.history.length;
-        if (targetCount < 0 || targetCount > currentLen) return;
-        if (targetCount === currentLen) return;
-
-        const movesToUndo = [];
+        if (targetCount < 0 || targetCount >= currentLen) return;
         for (let i = currentLen - 1; i >= targetCount; i--) {
-          movesToUndo.push(this.invert(this.history[i]));
+          this.push({ ...this.invert(this.history[i]), retires: i }, 'rollback');
         }
-
-        this.history = this.history.slice(0, targetCount);
-
-        for (const m of movesToUndo) {
-          this.push(m, 'rollback');
-        }
-
         if (this.onHistoryChange) this.onHistoryChange();
       }
 
       undo() {
-        if (this.isScrambling) this.fastFinishScramble();
+        // Land the in-flight and queued turns first, so "the last move" means
+        // the last move the user can actually see on the cube.
+        this.flushPending();
         if (!this.history.length) return;
         this.rollbackTo(this.history.length - 1);
       }
 
       solve() {
-        if (this.isScrambling) this.fastFinishScramble();
-        if (this.active) {
-          this.active.handle.setProgress(1);
-          this.active.handle.finish();
-          if (this.active.move.source === 'user' || this.active.move.source === 'scramble') {
-            this.history.push({ face: this.active.move.face, turns: this.active.move.turns });
-          }
-          this.active = null;
-        }
-        this.queue.length = 0;
         this.rollbackTo(0);
       }
 
@@ -713,14 +1071,11 @@
           this.active.handle.setProgress(eased);
 
           if (u >= 1) {
-            this.active.handle.finish();
-            const source = this.active.move.source;
-            if (source === 'user' || source === 'scramble') {
-              this.history.push({ face: this.active.move.face, turns: this.active.move.turns });
-              if (this.onHistoryChange) this.onHistoryChange();
-            }
-            if (this.onMove) this.onMove(this.active.move);
+            const active = this.active;
             this.active = null;
+            active.handle.finish();
+            this._recordFinished(active.move);
+            if (this.onMove) this.onMove(active.move);
           }
           return;
         }
@@ -736,7 +1091,9 @@
         const move = this.queue.shift();
         const handle = this.cube.beginMove(move.face, move.turns);
         let baseDuration = move.source === 'scramble' ? 0.08 : (move.source === 'rollback' ? 0.12 : 0.28);
-        const duration = Math.max(0.04, baseDuration / this.speed);
+        // Accelerate dynamically if there's a queue backlog so the cube feels responsive and never freezes
+        const backlogFactor = Math.min(3.5, 1 + this.queue.length * 0.25);
+        const duration = Math.max(0.03, (baseDuration / Math.max(0.1, this.speed)) / backlogFactor);
 
         this.active = {
           move,
@@ -882,11 +1239,19 @@
       container.querySelectorAll('.btn-run').forEach((btn) => {
         btn.addEventListener('click', (e) => {
           e.stopPropagation();
-          onUserInteractedWithMoveOrMethod();
+          if (btn.disabled || btn.classList.contains('running')) return;
           const alg = btn.dataset.alg;
           if (alg) {
             const cleanTokens = alg.replace(/^[^:]+:\s*/, '').trim().split(/\s+/).filter(Boolean);
             if (cleanTokens.length) {
+              btn.classList.add('running');
+              const origText = btn.textContent;
+              btn.textContent = '⏳';
+              setTimeout(() => {
+                btn.textContent = origText;
+                btn.classList.remove('running');
+              }, 400);
+              onUserInteractedWithMoveOrMethod();
               engine.pushSequence(cleanTokens, 'user');
             }
           }
@@ -994,26 +1359,9 @@
     }
 
     function updateSolutionForCurrentCube() {
-      // 1. Finish active move and flush queue
-      if (engine.isScrambling) engine.fastFinishScramble();
-      if (engine.active) {
-        engine.active.handle.setProgress(1);
-        engine.active.handle.finish();
-        if (engine.active.move.source === 'user' || engine.active.move.source === 'scramble' || engine.active.move.source === 'algorithm') {
-          engine.history.push({ face: engine.active.move.face, turns: engine.active.move.turns });
-        }
-        engine.active = null;
-      }
-      while (engine.queue.length > 0) {
-        const m = engine.queue.shift();
-        const handle = engine.cube.beginMove(m.face, m.turns);
-        handle.setProgress(1);
-        handle.finish();
-        if (m.source === 'user' || m.source === 'scramble' || m.source === 'algorithm') {
-          engine.history.push({ face: m.face, turns: m.turns });
-        }
-      }
-      if (engine.onHistoryChange) engine.onHistoryChange();
+      // 1. Land everything already asked for, so the solution describes the
+      //    cube the user is looking at.
+      engine.flushPending();
 
       // 2. Invert history and simplify
       const rawInverted = engine.history.slice().reverse().map((m) => engine.invert(m));
@@ -1128,6 +1476,20 @@
       { face: 'L', turns: -1, label: "L'" },
     ];
 
+    // One timestamp per control rather than one for the whole app: two
+    // different buttons pressed in quick succession are two moves, not one
+    // bouncing button. A single control still cannot double-fire within 60ms.
+    const lastMoveAt = new Map();
+    function triggerUserMove(move, controlId) {
+      if (!move) return;
+      const now = Date.now();
+      const key = controlId || ('move:' + move.face + move.turns);
+      if (now - (lastMoveAt.get(key) || 0) < 60) return;
+      lastMoveAt.set(key, now);
+      onUserInteractedWithMoveOrMethod();
+      engine.push(move, 'user');
+    }
+
     for (const m of moveDefs) {
       const btn = document.createElement('button');
       btn.className = 'move-btn';
@@ -1135,14 +1497,57 @@
       btn.dataset.turns = m.turns;
       btn.textContent = m.label;
       btn.addEventListener('click', () => {
-        onUserInteractedWithMoveOrMethod();
-        engine.push({ face: m.face, turns: m.turns }, 'user');
+        triggerUserMove({ face: m.face, turns: m.turns }, 'hud:' + m.label);
       });
       movesContainer.appendChild(btn);
     }
 
+    // Pocket Cube (2x2) has no middle layer; M/S/E slice buttons are hidden if no middle layer
+    const CUBE_DIM = 2;
+    const hasMidLayer = (CUBE_DIM % 2 === 1); // 2x2 has 0 middle layers; only odd-dimension cubes have mid layer
+
+    const sliceContainer = document.getElementById('sliceMoves');
+    if (sliceContainer) {
+      if (!hasMidLayer) {
+        sliceContainer.style.display = 'none';
+      } else {
+        const sliceDefs = [
+          { face: 'M', turns: 1, label: 'M' },
+          { face: 'M', turns: -1, label: "M'" },
+          { face: 'S', turns: 1, label: 'S' },
+          { face: 'S', turns: -1, label: "S'" },
+          { face: 'E', turns: 1, label: 'E' },
+          { face: 'E', turns: -1, label: "E'" },
+        ];
+        for (const m of sliceDefs) {
+          const btn = document.createElement('button');
+          btn.className = 'move-btn';
+          btn.dataset.face = m.face;
+          btn.dataset.turns = m.turns;
+          btn.textContent = m.label;
+          btn.title = `${m.label} · 切片层旋转 (Slice)`;
+          btn.addEventListener('click', () => {
+            triggerUserMove({ face: m.face, turns: m.turns }, 'hud:' + m.label);
+          });
+          sliceContainer.appendChild(btn);
+        }
+      }
+    }
+
+    // Each action keeps its own timestamp: pressing Undo must never swallow
+    // the Solve that follows it.
+    const lastActionAt = new Map();
+    function actionAllowed(name, ms) {
+      const now = Date.now();
+      if (now - (lastActionAt.get(name) || 0) < ms) return false;
+      lastActionAt.set(name, now);
+      return true;
+    }
+
     const actions = {
       scramble: () => {
+        if (!actionAllowed('scramble', 180)) return;
+        if (scrambleBtn && scrambleBtn.disabled) return;
         isScrambled = true;
         setScrambleDisabled(false);
         currentProfileIndex = (currentProfileIndex + 1) % SCRAMBLE_PROFILES.length;
@@ -1151,20 +1556,22 @@
         engine.scramble(profile.scramble);
       },
       solve: () => {
+        if (!actionAllowed('solve', 180)) return;
+        if (cube.isSolved() && !engine.busy) return;
         resetScrambleState();
         engine.solve();
       },
       undo: () => {
+        if (!actionAllowed('undo', 80)) return;
         onUserInteractedWithMoveOrMethod();
         engine.undo();
       },
       reset: () => {
+        if (!actionAllowed('reset', 150)) return;
         resetScrambleState();
-        engine.queue.length = 0;
-        engine.history.length = 0;
+        engine.clear();
         cube.reset();
         ticker.textContent = 'READY';
-        if (engine.onHistoryChange) engine.onHistoryChange();
         updateSolutionForCurrentCube();
       },
     };
@@ -1182,7 +1589,7 @@
         document.querySelectorAll('[data-view]').forEach((b) => b.classList.remove('active'));
         btn.classList.add('active');
         viewMode = btn.dataset.view;
-        updateCircleControlsPosition();
+        onResize();
         updateCubeControlsWidgetVisibility();
       });
     });
@@ -1201,14 +1608,25 @@
       controls.autoRotateSpeed = 1.6;
     });
 
+    const colorBlindToggle = document.getElementById('color-blind-toggle');
+    if (colorBlindToggle) {
+      colorBlindToggle.addEventListener('change', (e) => {
+        const enabled = e.target.checked;
+        cube.setColorBlindMode(enabled);
+        diagram.setColorBlindMode(enabled);
+        document.body.classList.toggle('color-blind-mode', enabled);
+      });
+    }
+
     const ticker = document.getElementById('ticker');
 
     window.addEventListener('keydown', (e) => {
       if (e.target instanceof HTMLInputElement) return;
+      if (e.repeat) return; // Ignore hold-down repeat spam
       const key = e.key.toUpperCase();
-      if (FACES.includes(key)) {
-        onUserInteractedWithMoveOrMethod();
-        engine.push(engine.parseMove(key + (e.shiftKey ? "'" : '')), 'user');
+      const validMoves = ['U', 'D', 'F', 'B', 'R', 'L', 'M', 'E', 'S'];
+      if (validMoves.includes(key)) {
+        triggerUserMove(engine.parseMove(key + (e.shiftKey ? "'" : '')));
         e.preventDefault();
         return;
       }
@@ -1233,6 +1651,16 @@
         rotateCubeView(-Math.PI / 2, 0);
       }
     });
+
+    // #8: the queue is capped, so say when a click could not be taken rather
+    // than dropping it in silence.
+    let queueFullTimer = null;
+    engine.onQueueFull = () => {
+      if (!ticker) return;
+      ticker.textContent = 'QUEUE FULL - let the cube catch up';
+      if (queueFullTimer) clearTimeout(queueFullTimer);
+      queueFullTimer = setTimeout(() => { queueFullTimer = null; }, 900);
+    };
 
     engine.onMove = (move) => {
       const solved = cube.isSolved();
@@ -1301,9 +1729,17 @@
     document.querySelectorAll('.btn-run').forEach((btn) => {
       btn.addEventListener('click', (e) => {
         e.stopPropagation();
-        onUserInteractedWithMoveOrMethod();
+        if (btn.disabled || btn.classList.contains('running')) return;
         const alg = btn.dataset.alg;
         if (alg) {
+          btn.classList.add('running');
+          const origText = btn.textContent;
+          btn.textContent = '⏳';
+          setTimeout(() => {
+            btn.textContent = origText;
+            btn.classList.remove('running');
+          }, 400);
+          onUserInteractedWithMoveOrMethod();
           const tokens = alg.trim().split(/\s+/);
           for (const t of tokens) engine.push(engine.parseMove(t), 'user');
         }
@@ -1361,8 +1797,9 @@
 
       const w = window.innerWidth;
       const h = window.innerHeight;
-      const topH = viewMode === 'both' ? Math.floor(h * 0.52) : h;
-      const aspect = w / topH;
+      const topH = Math.floor(h * 0.50);
+      const leftW = viewMode === 'both' ? Math.floor(w * 0.50) : w;
+      const aspect = leftW / topH;
       const f = RING_CONFIG.frustum;
       const halfW = aspect >= 1 ? f * aspect : f;
       const halfH = aspect >= 1 ? f : f / aspect;
@@ -1430,7 +1867,7 @@
         if (!el) continue;
         const ndcX = b.wx / halfW;
         const ndcY = b.wy / halfH;
-        const px = (ndcX + 1) * 0.5 * w;
+        const px = (ndcX + 1) * 0.5 * leftW;
         const py = (1 - ndcY) * 0.5 * topH;
         el.style.left = `${px}px`;
         el.style.top = `${py}px`;
@@ -1440,11 +1877,10 @@
     document.querySelectorAll('.circle-rot-btn').forEach((btn) => {
       btn.addEventListener('click', (e) => {
         e.stopPropagation();
-        onUserInteractedWithMoveOrMethod();
         const face = btn.dataset.face;
         const turns = parseInt(btn.dataset.turns, 10);
         if (face && !isNaN(turns)) {
-          engine.push({ face, turns }, 'user');
+          triggerUserMove({ face, turns }, 'circle:' + btn.id);
         }
       });
     });
@@ -1501,11 +1937,17 @@
     const cornerArrowMeshes = [];
     const cornerControlsGroup = new THREE.Group();
     cube.root.add(cornerControlsGroup);
+    cornerControlsGroup.visible = false;
 
     const edgeArrowMeshes = [];
     const edgeControlsGroup = new THREE.Group();
     cube.root.add(edgeControlsGroup);
     edgeControlsGroup.visible = false;
+
+    const faceArrowMeshes = [];
+    const faceControlsGroup = new THREE.Group();
+    cube.root.add(faceControlsGroup);
+    faceControlsGroup.visible = true;
 
     function create3DArrowTexture(dir) {
       const canvas = document.createElement('canvas');
@@ -1531,9 +1973,13 @@
       ctx.fillStyle = '#ffd700';
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
-      ctx.font = 'bold 74px system-ui, -apple-system, sans-serif';
 
-      const glyphs = { up: '↑', down: '↓', left: '←', right: '→' };
+      const glyphs = { up: '↑', down: '↓', left: '←', right: '→', cw: '↻', ccw: '↺' };
+      if (dir === 'cw' || dir === 'ccw') {
+        ctx.font = 'bold 64px system-ui, -apple-system, sans-serif';
+      } else {
+        ctx.font = 'bold 74px system-ui, -apple-system, sans-serif';
+      }
       ctx.fillText(glyphs[dir] || '↑', 64, 66);
 
       const texture = new THREE.CanvasTexture(canvas);
@@ -1544,7 +1990,9 @@
       up: create3DArrowTexture('up'),
       down: create3DArrowTexture('down'),
       left: create3DArrowTexture('left'),
-      right: create3DArrowTexture('right')
+      right: create3DArrowTexture('right'),
+      cw: create3DArrowTexture('cw'),
+      ccw: create3DArrowTexture('ccw')
     };
 
     const arrowMaterials = {
@@ -1580,6 +2028,26 @@
       }),
       right: new THREE.MeshBasicMaterial({
         map: arrowTextures.right,
+        transparent: true,
+        depthTest: true,
+        depthWrite: false,
+        polygonOffset: true,
+        polygonOffsetFactor: -4,
+        polygonOffsetUnits: -4,
+        side: THREE.FrontSide
+      }),
+      cw: new THREE.MeshBasicMaterial({
+        map: arrowTextures.cw,
+        transparent: true,
+        depthTest: true,
+        depthWrite: false,
+        polygonOffset: true,
+        polygonOffsetFactor: -4,
+        polygonOffsetUnits: -4,
+        side: THREE.FrontSide
+      }),
+      ccw: new THREE.MeshBasicMaterial({
+        map: arrowTextures.ccw,
         transparent: true,
         depthTest: true,
         depthWrite: false,
@@ -1790,6 +2258,23 @@
         edgeControlsGroup.add(mesh);
         edgeArrowMeshes.push(mesh);
       }
+
+      // 3. Build Face Rotation Controls (Mode 4 / Face Controls - Closer to Center: ↺ on TL, ↻ on BR)
+      const faceCenterOffset = 0.28;
+      const faceDefs = [
+        { dir: 'ccw', pos: faceCenter.clone().addScaledVector(axes.r, -faceCenterOffset).addScaledVector(axes.u, faceCenterOffset), move: { face: fName, turns: -1 } },
+        { dir: 'cw',  pos: faceCenter.clone().addScaledVector(axes.r, faceCenterOffset).addScaledVector(axes.u, -faceCenterOffset),  move: { face: fName, turns: 1 } }
+      ];
+
+      for (const def of faceDefs) {
+        const mesh = new THREE.Mesh(arrowGeo, arrowMaterials[def.dir].clone());
+        mesh.position.copy(def.pos);
+        mesh.quaternion.copy(faceQuat);
+        mesh.renderOrder = 999;
+        mesh.userData = { face: def.move.face, turns: def.move.turns, dir: def.dir };
+        faceControlsGroup.add(mesh);
+        faceArrowMeshes.push(mesh);
+      }
     }
 
     function updateCubeControlsWidgetVisibility() {
@@ -1803,12 +2288,16 @@
       }
     }
 
-    let currentControlMode = 'corner'; // 'none' | 'corner' | 'level'
+    const raycaster = new THREE.Raycaster();
+    let hoveredArrow = null;
+
+    let currentControlMode = 'face'; // 'none' | 'corner' | 'level' | 'face'
 
     function setCubeControlMode(mode) {
       currentControlMode = mode;
       cornerControlsGroup.visible = (mode === 'corner');
       edgeControlsGroup.visible = (mode === 'level');
+      faceControlsGroup.visible = (mode === 'face');
 
       if (hoveredArrow) {
         hoveredArrow.scale.set(1, 1, 1);
@@ -1820,37 +2309,46 @@
       document.getElementById('btnCtrlHide')?.classList.toggle('active', mode === 'none');
       document.getElementById('btnCtrlCorner')?.classList.toggle('active', mode === 'corner');
       document.getElementById('btnCtrlLevel')?.classList.toggle('active', mode === 'level');
+      document.getElementById('btnCtrlFace')?.classList.toggle('active', mode === 'face');
 
       // HUD buttons
       document.getElementById('hudBtnCtrlHide')?.classList.toggle('active', mode === 'none');
       document.getElementById('hudBtnCtrlCorner')?.classList.toggle('active', mode === 'corner');
       document.getElementById('hudBtnCtrlLevel')?.classList.toggle('active', mode === 'level');
+      document.getElementById('hudBtnCtrlFace')?.classList.toggle('active', mode === 'face');
     }
 
     document.getElementById('btnCtrlHide')?.addEventListener('click', () => setCubeControlMode('none'));
     document.getElementById('btnCtrlCorner')?.addEventListener('click', () => setCubeControlMode('corner'));
     document.getElementById('btnCtrlLevel')?.addEventListener('click', () => setCubeControlMode('level'));
+    document.getElementById('btnCtrlFace')?.addEventListener('click', () => setCubeControlMode('face'));
 
     document.getElementById('hudBtnCtrlHide')?.addEventListener('click', () => setCubeControlMode('none'));
     document.getElementById('hudBtnCtrlCorner')?.addEventListener('click', () => setCubeControlMode('corner'));
     document.getElementById('hudBtnCtrlLevel')?.addEventListener('click', () => setCubeControlMode('level'));
+    document.getElementById('hudBtnCtrlFace')?.addEventListener('click', () => setCubeControlMode('face'));
 
-    const raycaster = new THREE.Raycaster();
-    let hoveredArrow = null;
+    // Initialize to face controls by default
+    setCubeControlMode('face');
 
     function get3DMouseNDC(clientX, clientY) {
       const w = window.innerWidth;
       const h = window.innerHeight;
-      let vpTop = 0, vpH = h;
+      const topH = Math.floor(h * 0.50);
+      let vpLeft = 0, vpTop = 0, vpW = w, vpH = topH;
       if (viewMode === 'both') {
-        const topH = Math.floor(h * 0.52);
-        vpTop = topH;
-        vpH = h - topH;
+        const leftW = Math.floor(w * 0.50);
+        vpLeft = leftW;
+        vpTop = 0;
+        vpW = w - leftW;
+        vpH = topH;
       } else if (viewMode === 'circles') {
         return null;
       }
-      if (clientY < vpTop || clientY > vpTop + vpH) return null;
-      const ndcX = (clientX / w) * 2 - 1;
+      if (clientX < vpLeft || clientX > vpLeft + vpW || clientY < vpTop || clientY > vpTop + vpH) {
+        return null;
+      }
+      const ndcX = ((clientX - vpLeft) / vpW) * 2 - 1;
       const ndcY = -((clientY - vpTop) / vpH) * 2 + 1;
       return new THREE.Vector2(ndcX, ndcY);
     }
@@ -1874,7 +2372,9 @@
         return;
       }
       raycaster.setFromCamera(ndc, camera3D);
-      const targetMeshes = (currentControlMode === 'corner') ? cornerArrowMeshes : edgeArrowMeshes;
+      const targetMeshes = (currentControlMode === 'corner') ? cornerArrowMeshes :
+                           (currentControlMode === 'level') ? edgeArrowMeshes :
+                           (currentControlMode === 'face') ? faceArrowMeshes : [];
       const hits = raycaster.intersectObjects(targetMeshes);
       if (hits.length > 0) {
         renderer.domElement.style.cursor = 'pointer';
@@ -1896,9 +2396,26 @@
     let pointerDownPos = { x: 0, y: 0 };
     renderer.domElement.addEventListener('pointerdown', (e) => {
       pointerDownPos = { x: e.clientX, y: e.clientY };
+      if (viewMode === 'both') {
+        const leftW = Math.floor(window.innerWidth * 0.50);
+        const topH = Math.floor(window.innerHeight * 0.50);
+        if (e.clientX < leftW || e.clientY > topH) {
+          controls.enabled = false;
+          return;
+        }
+      } else if (viewMode === 'circles') {
+        controls.enabled = false;
+        return;
+      }
+      controls.enabled = true;
+    });
+
+    window.addEventListener('pointerup', () => {
+      controls.enabled = true;
     });
 
     renderer.domElement.addEventListener('pointerup', (e) => {
+      if (e.button !== 0 && e.button !== undefined) return; // Only trigger turns on left-click
       if (viewMode === 'circles' || currentControlMode === 'none') return;
       const dist = Math.hypot(e.clientX - pointerDownPos.x, e.clientY - pointerDownPos.y);
       if (dist > 6) return; // Drag/orbit, ignore click
@@ -1907,16 +2424,25 @@
       if (!ndc) return;
 
       raycaster.setFromCamera(ndc, camera3D);
-      const targetMeshes = (currentControlMode === 'corner') ? cornerArrowMeshes : edgeArrowMeshes;
+      const targetMeshes = (currentControlMode === 'corner') ? cornerArrowMeshes :
+                           (currentControlMode === 'level') ? edgeArrowMeshes :
+                           (currentControlMode === 'face') ? faceArrowMeshes : [];
       const hits = raycaster.intersectObjects(targetMeshes);
       if (hits.length > 0) {
         e.stopPropagation();
         const { face, turns } = hits[0].object.userData;
         if (face && turns) {
-          onUserInteractedWithMoveOrMethod();
-          engine.push({ face, turns }, 'user');
+          triggerUserMove({ face, turns }, 'arrow:' + hits[0].object.uuid);
         }
       }
+    });
+
+    renderer.domElement.addEventListener('pointerleave', () => {
+      if (hoveredArrow) {
+        hoveredArrow.scale.set(1, 1, 1);
+        hoveredArrow = null;
+      }
+      renderer.domElement.style.cursor = 'default';
     });
 
     // ------------------------------------------------------------- Viewport Rendering Loop
@@ -1943,17 +2469,20 @@
       renderer.setScissorTest(false);
       renderer.clear();
 
+      const topH = Math.floor(h * 0.50);
+      const btmH = h - topH;
+      const leftW = Math.floor(w * 0.50);
+      const rightW = w - leftW;
+
       if (viewMode === 'both') {
-        const topH = Math.floor(h * 0.52);
-        const btmH = h - topH;
-        // Top: 2D Three-Ring Projection
-        drawViewport(0, btmH, w, topH, diagram.scene, diagram.camera);
-        // Bottom: 3D Solid 2x2 Rubik's Cube
-        drawViewport(0, 0, w, btmH, scene3D, camera3D);
+        // Top-Left: 2D Three-Ring Projection
+        drawViewport(0, btmH, leftW, topH, diagram.scene, diagram.camera);
+        // Top-Right: 3D Solid 2x2 Rubik's Cube
+        drawViewport(leftW, btmH, rightW, topH, scene3D, camera3D);
       } else if (viewMode === 'cube') {
-        drawViewport(0, 0, w, h, scene3D, camera3D);
+        drawViewport(0, btmH, w, topH, scene3D, camera3D);
       } else if (viewMode === 'circles') {
-        drawViewport(0, 0, w, h, diagram.scene, diagram.camera);
+        drawViewport(0, btmH, w, topH, diagram.scene, diagram.camera);
       }
     }
 
@@ -1961,9 +2490,22 @@
       const w = window.innerWidth;
       const h = window.innerHeight;
       renderer.setSize(w, h);
-      camera3D.aspect = w / (viewMode === 'both' ? h * 0.48 : h);
+
+      const topH = Math.floor(h * 0.50);
+      const leftW = Math.floor(w * 0.50);
+      const rightW = w - leftW;
+
+      if (viewMode === 'both') {
+        camera3D.aspect = rightW / topH;
+        diagram.resize(leftW, topH);
+      } else if (viewMode === 'cube') {
+        camera3D.aspect = w / topH;
+        diagram.resize(w, topH);
+      } else if (viewMode === 'circles') {
+        camera3D.aspect = w / topH;
+        diagram.resize(w, topH);
+      }
       camera3D.updateProjectionMatrix();
-      diagram.resize(w, viewMode === 'both' ? h * 0.52 : h);
       updateCircleControlsPosition();
     }
 

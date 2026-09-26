@@ -58,28 +58,6 @@
     }
 
     /* Quadrant Layout Framework */
-    .quadrant-divider-h {
-      position: fixed;
-      top: 50%;
-      left: 0;
-      right: 0;
-      height: 1px;
-      background: linear-gradient(90deg, transparent, rgba(111, 227, 198, 0.22) 15%, rgba(111, 227, 198, 0.22) 85%, transparent);
-      pointer-events: none;
-      z-index: 6;
-    }
-
-    .quadrant-divider-v {
-      position: fixed;
-      top: 0;
-      bottom: 50%;
-      left: 50%;
-      width: 1px;
-      background: linear-gradient(180deg, transparent, rgba(111, 227, 198, 0.22) 15%, rgba(111, 227, 198, 0.22) 85%, transparent);
-      pointer-events: none;
-      z-index: 6;
-    }
-
     .quadrant-tag {
       position: fixed;
       z-index: 15;
@@ -1069,8 +1047,6 @@
   </div>
 
   <!-- Quadrant Dividers & Tags -->
-  <div class="quadrant-divider-h"></div>
-  <div class="quadrant-divider-v"></div>
 
   <div class="quadrant-tag tag-top-left">
     <span class="dot-indicator"></span>
@@ -1941,6 +1917,19 @@
     }
 
     // ------------------------------------------------------------- 2D Three-Ring System
+    // Which ring of the 2D diagram each move turns
+    const RING_OF_MOVE = {
+      U: { axis: 'Y', slice: 1 },
+      D: { axis: 'Y', slice: -1 },
+      R: { axis: 'X', slice: 1 },
+      L: { axis: 'X', slice: -1 },
+      F: { axis: 'Z', slice: 1 },
+      B: { axis: 'Z', slice: -1 },
+      M: { axis: 'X', slice: -1 },
+      E: { axis: 'Y', slice: -1 },
+      S: { axis: 'Z', slice: 1 },
+    };
+
     class ThreeRingDiagram {
       constructor(cube) {
         this.cube = cube;
@@ -2064,10 +2053,45 @@
       setRingHighlight(axis, slice, on) {
         for (const r of this.rings) {
           if (r.axis === axis && r.slice === slice) {
-            r.glowMat.opacity = on ? 1.0 : 0.0;
-            r.mat.color.setHex(on ? THEME.ringActive : THEME.ringInactive);
-            r.mat.opacity = on ? 0.95 : 0.32;
+            r.active = on;
+            this._paintRing(r);
           }
+        }
+      }
+
+      /**
+       * Pointer is over a ring button: tint the rings it turns in the button's
+       * colour. Pass color = null to clear. A turn in progress keeps its orange
+       * highlight, and the tint comes back once that turn lands.
+       */
+      setHoverRings(axis, slices, color) {
+        for (const r of this.rings) {
+          r.hoverColor = color && r.axis === axis && slices.includes(r.slice) ? color : null;
+          this._paintRing(r);
+        }
+      }
+
+      /** The rings a move turns: { axis, slices } in this diagram's ring keys. */
+      ringsOf(face) {
+        const ring = RING_OF_MOVE[face];
+        return ring ? { axis: ring.axis, slices: [ring.slice] } : null;
+      }
+
+      _paintRing(r) {
+        if (r.active) {
+          r.glowMat.color.setHex(THEME.ringActive);
+          r.glowMat.opacity = 1.0;
+          r.mat.color.setHex(THEME.ringActive);
+          r.mat.opacity = 0.95;
+        } else if (r.hoverColor) {
+          r.glowMat.color.set(r.hoverColor);
+          r.glowMat.opacity = 1.0;
+          r.mat.color.set(r.hoverColor);
+          r.mat.opacity = 0.95;
+        } else {
+          r.glowMat.opacity = 0.0;
+          r.mat.color.setHex(THEME.ringInactive);
+          r.mat.opacity = 0.32;
         }
       }
 
@@ -2081,19 +2105,7 @@
        * neighbours in the same quarter turn.
        */
       beginMove(face, turns) {
-        const axisMap = {
-          U: { axis: 'Y', slice: 1 },
-          D: { axis: 'Y', slice: -1 },
-          R: { axis: 'X', slice: 1 },
-          L: { axis: 'X', slice: -1 },
-          F: { axis: 'Z', slice: 1 },
-          B: { axis: 'Z', slice: -1 },
-          M: { axis: 'X', slice: -1 },
-          E: { axis: 'Y', slice: -1 },
-          S: { axis: 'Z', slice: 1 },
-        };
-
-        const { axis, slice } = axisMap[face] || axisMap.U;
+        const { axis, slice } = RING_OF_MOVE[face] || RING_OF_MOVE.U;
         this.setRingHighlight(axis, slice, true);
 
         let normal;
@@ -3213,6 +3225,12 @@
     }
 
     document.querySelectorAll('.circle-rot-btn').forEach((btn) => {
+      // Hovering a button lights the ring it turns, in the button's own colour
+      btn.addEventListener('pointerenter', () => {
+        const ring = diagram.ringsOf(btn.dataset.face);
+        if (ring) diagram.setHoverRings(ring.axis, ring.slices, getComputedStyle(btn).borderTopColor);
+      });
+      btn.addEventListener('pointerleave', () => diagram.setHoverRings(null, [], null));
       btn.addEventListener('click', (e) => {
         e.stopPropagation();
         const face = btn.dataset.face;

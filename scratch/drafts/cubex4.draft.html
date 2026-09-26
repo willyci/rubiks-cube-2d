@@ -1,0 +1,2645 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>换个角度，解开魔方 · Rubik's Circles 4x4</title>
+  <style>
+    :root {
+      --bg: #22302d;
+      --ink: #e8f1ee;
+      --muted: #8fa8a1;
+      --accent: #ff8c1a;
+      --cyan: #6fe3c6;
+      --panel: rgba(16, 26, 24, 0.76);
+      --line: rgba(190, 216, 210, 0.2);
+    }
+
+    * { box-sizing: border-box; }
+
+    html, body {
+      margin: 0;
+      height: 100%;
+      overflow: hidden;
+      background: var(--bg);
+      color: var(--ink);
+      font: 13px/1.5 "Segoe UI", system-ui, -apple-system, "PingFang SC", "Microsoft YaHei", sans-serif;
+      user-select: none;
+      -webkit-user-select: none;
+    }
+
+    #app { position: fixed; inset: 0; }
+    #app canvas { display: block; width: 100%; height: 100%; }
+
+    #title {
+      position: fixed;
+      top: 10px;
+      left: 0;
+      right: 0;
+      text-align: center;
+      pointer-events: none;
+      z-index: 10;
+    }
+
+    #title h1 {
+      margin: 0;
+      font-size: 20px;
+      font-weight: 600;
+      letter-spacing: 0.16em;
+      color: var(--cyan);
+      text-shadow: 0 2px 20px rgba(0, 0, 0, 0.8), 0 0 14px rgba(111, 227, 198, 0.4);
+    }
+
+    #title p {
+      margin: 2px 0 0;
+      font-size: 11px;
+      color: var(--muted);
+      letter-spacing: 0.05em;
+    }
+
+    /* Quadrant Layout Framework */
+    .quadrant-divider-h {
+      position: fixed;
+      top: 50%;
+      left: 0;
+      right: 0;
+      height: 1px;
+      background: linear-gradient(90deg, transparent, rgba(111, 227, 198, 0.22) 15%, rgba(111, 227, 198, 0.22) 85%, transparent);
+      pointer-events: none;
+      z-index: 6;
+    }
+
+    .quadrant-divider-v {
+      position: fixed;
+      top: 0;
+      bottom: 50%;
+      left: 50%;
+      width: 1px;
+      background: linear-gradient(180deg, transparent, rgba(111, 227, 198, 0.22) 15%, rgba(111, 227, 198, 0.22) 85%, transparent);
+      pointer-events: none;
+      z-index: 6;
+    }
+
+    .quadrant-tag {
+      position: fixed;
+      z-index: 15;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 3px 9px;
+      border-radius: 6px;
+      background: rgba(16, 26, 24, 0.75);
+      border: 1px solid rgba(111, 227, 198, 0.25);
+      color: var(--muted);
+      font-size: 11px;
+      font-weight: 500;
+      letter-spacing: 0.04em;
+      pointer-events: none;
+      backdrop-filter: blur(8px);
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.35);
+    }
+    .quadrant-tag .dot-indicator {
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+      background: var(--cyan);
+      box-shadow: 0 0 6px var(--cyan);
+    }
+    .quadrant-tag .dot-indicator.green {
+      background: #50e3c2;
+      box-shadow: 0 0 6px #50e3c2;
+    }
+
+    .tag-top-left {
+      top: 14px;
+      left: 180px;
+    }
+    .tag-top-right {
+      top: 14px;
+      right: 16px;
+    }
+
+    /* Back to Hub Button */
+    .btn-hub {
+      position: fixed;
+      top: 12px;
+      left: 16px;
+      z-index: 30;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 6px 12px;
+      border-radius: 8px;
+      background: rgba(16, 26, 24, 0.82);
+      border: 1px solid rgba(111, 227, 198, 0.35);
+      color: var(--cyan);
+      text-decoration: none;
+      font-size: 11.5px;
+      font-weight: 600;
+      letter-spacing: 0.04em;
+      backdrop-filter: blur(10px);
+      -webkit-backdrop-filter: blur(10px);
+      box-shadow: 0 2px 10px rgba(0, 0, 0, 0.4);
+      transition: all 0.2s ease;
+      cursor: pointer;
+    }
+
+    .btn-hub:hover {
+      background: rgba(111, 227, 198, 0.2);
+      border-color: var(--cyan);
+      color: #fff;
+      transform: translateY(-1px);
+      box-shadow: 0 4px 14px rgba(111, 227, 198, 0.25);
+    }
+
+    /* Panels & General UI */
+    .panel {
+      position: fixed;
+      background: var(--panel);
+      backdrop-filter: blur(14px);
+      -webkit-backdrop-filter: blur(14px);
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
+      z-index: 10;
+      transition: all 0.25s cubic-bezier(0.2, 0.9, 0.3, 1);
+    }
+
+    /* Lower-Left Panel: 4x4 Solving Methods Guide */
+    #methods-panel {
+      position: fixed;
+      top: calc(50% + 8px);
+      bottom: 16px;
+      left: 20px;
+      width: calc(50vw - 30px);
+      display: flex;
+      flex-direction: column;
+      z-index: 20;
+      padding: 13px 15px;
+      box-sizing: border-box;
+      overflow: hidden;
+      transition: transform 0.25s ease, opacity 0.25s ease;
+    }
+
+    #methods-panel.collapsed {
+      transform: translateY(calc(100% + 24px));
+      opacity: 0;
+      pointer-events: none;
+    }
+
+    #toggleMethodsFloat {
+      display: none;
+      position: fixed;
+      bottom: 16px;
+      left: 16px;
+      z-index: 20;
+      background: rgba(16, 26, 24, 0.88);
+      border: 1px solid var(--cyan);
+      color: var(--cyan);
+      padding: 6px 12px;
+      border-radius: 8px;
+      font-size: 11px;
+      font-weight: 600;
+      cursor: pointer;
+      backdrop-filter: blur(8px);
+      box-shadow: 0 4px 14px rgba(0, 0, 0, 0.4);
+    }
+    #toggleMethodsFloat:hover {
+      background: rgba(111, 227, 198, 0.25);
+      color: #fff;
+    }
+
+    .panel-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 8px;
+      flex-shrink: 0;
+    }
+
+    .panel-title {
+      font-size: 12px;
+      font-weight: 600;
+      letter-spacing: 0.08em;
+      color: var(--cyan);
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .btn-icon {
+      background: transparent;
+      border: none;
+      color: var(--muted);
+      cursor: pointer;
+      font-size: 14px;
+      padding: 2px 6px;
+      border-radius: 4px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .btn-icon:hover { color: var(--ink); background: rgba(255, 255, 255, 0.08); }
+
+    /* Scramble State Banner */
+    .method-scramble-status {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 6px 10px;
+      margin-bottom: 8px;
+      background: rgba(255, 140, 26, 0.1);
+      border: 1px solid rgba(255, 140, 26, 0.3);
+      border-radius: 6px;
+      font-size: 11px;
+      color: var(--accent);
+      flex-shrink: 0;
+    }
+    .method-scramble-status.active {
+      display: flex;
+    }
+    .method-scramble-status .status-indicator {
+      width: 7px;
+      height: 7px;
+      border-radius: 50%;
+      background: var(--accent);
+      box-shadow: 0 0 6px var(--accent);
+    }
+
+    /* Update Solution Button */
+    .btn-update-solution {
+      display: inline-flex;
+      flex-direction: row !important;
+      align-items: center;
+      justify-content: center;
+      gap: 7px;
+      width: 100%;
+      padding: 7px 12px;
+      margin-bottom: 10px;
+      background: linear-gradient(135deg, rgba(111, 227, 198, 0.16), rgba(255, 140, 26, 0.16));
+      border: 1px solid rgba(111, 227, 198, 0.45);
+      border-radius: 7px;
+      color: var(--cyan);
+      font-size: 12px;
+      font-weight: 700;
+      letter-spacing: 0.06em;
+      cursor: pointer;
+      backdrop-filter: blur(8px);
+      -webkit-backdrop-filter: blur(8px);
+      box-shadow: 0 2px 10px rgba(0, 0, 0, 0.25);
+      transition: all 0.2s ease;
+      flex-shrink: 0;
+      user-select: none;
+      -webkit-user-select: none;
+    }
+
+    .btn-update-solution:hover {
+      background: linear-gradient(135deg, rgba(111, 227, 198, 0.32), rgba(255, 140, 26, 0.32));
+      border-color: var(--cyan);
+      color: #fff;
+      transform: translateY(-1px);
+      box-shadow: 0 4px 16px rgba(111, 227, 198, 0.35);
+    }
+
+    .btn-update-solution:active {
+      transform: translateY(1px);
+      box-shadow: 0 1px 6px rgba(111, 227, 198, 0.2);
+    }
+
+    .btn-update-solution .btn-update-icon {
+      font-size: 13px;
+      color: var(--accent);
+      transition: transform 0.3s ease;
+    }
+
+    .btn-update-solution:hover .btn-update-icon {
+      transform: rotate(180deg) scale(1.2);
+    }
+
+    .tabs {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 4px;
+      margin-bottom: 10px;
+      flex-shrink: 0;
+      background: rgba(0, 0, 0, 0.3);
+      border: 1px solid var(--line);
+      border-radius: 6px;
+      padding: 2px;
+    }
+
+    .tab {
+      background: transparent;
+      border: none;
+      border-radius: 5px;
+      padding: 5px 2px;
+      color: var(--muted);
+      font-size: 11px;
+      font-weight: 600;
+      cursor: pointer;
+      text-align: center;
+      transition: all 0.15s ease;
+    }
+
+    .tab:hover { color: var(--ink); background: rgba(255, 255, 255, 0.06); }
+    .tab.active {
+      background: rgba(111, 227, 198, 0.22);
+      color: var(--cyan);
+      box-shadow: 0 1px 4px rgba(0, 0, 0, 0.3);
+    }
+
+    .tab-content {
+      display: none;
+      flex: 1;
+      overflow-y: auto;
+      overflow-x: hidden;
+      padding-right: 4px;
+    }
+
+    .tab-content.active {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    .tab-content::-webkit-scrollbar { width: 4px; }
+    .tab-content::-webkit-scrollbar-thumb { background: var(--line); border-radius: 4px; }
+    .tab-content::-webkit-scrollbar-thumb:hover { background: var(--muted); }
+
+    /* Vertically Stacked Step Cards */
+    .step-card {
+      background: rgba(0, 0, 0, 0.22);
+      border: 1px solid rgba(190, 216, 210, 0.12);
+      border-radius: 8px;
+      padding: 8px 10px;
+      transition: border-color 0.15s;
+      flex-shrink: 0;
+    }
+
+    .step-card:hover {
+      border-color: rgba(111, 227, 198, 0.35);
+      background: rgba(0, 0, 0, 0.28);
+    }
+
+    .step-title {
+      font-weight: 600;
+      color: var(--ink);
+      font-size: 11.5px;
+      margin-bottom: 4px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .step-badge {
+      font-size: 9.5px;
+      background: rgba(111, 227, 198, 0.15);
+      color: var(--cyan);
+      border-radius: 4px;
+      padding: 1px 5px;
+      font-weight: 500;
+    }
+    .step-badge.done {
+      background: rgba(0, 208, 132, 0.2);
+      color: #00d084;
+    }
+
+    .step-desc {
+      font-size: 10.5px;
+      color: var(--muted);
+      line-height: 1.4;
+      margin-bottom: 6px;
+    }
+
+    .alg-box {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 6px;
+      background: rgba(0, 0, 0, 0.35);
+      border: 1px dashed rgba(190, 216, 210, 0.2);
+      border-radius: 6px;
+      padding: 4px 8px;
+      margin-top: 4px;
+    }
+
+    .alg-text {
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+      font-size: 11px;
+      font-weight: 600;
+      color: var(--accent);
+      letter-spacing: 0.04em;
+      white-space: nowrap;
+      overflow-x: auto;
+    }
+
+    .btn-run {
+      background: rgba(111, 227, 198, 0.15);
+      border: 1px solid var(--cyan);
+      color: var(--cyan);
+      border-radius: 4px;
+      padding: 2px 7px;
+      font-size: 10.5px;
+      font-weight: 600;
+      cursor: pointer;
+      white-space: nowrap;
+      transition: all 0.15s ease;
+      flex-shrink: 0;
+    }
+
+    .btn-run:hover {
+      background: var(--cyan);
+      color: #101a18;
+    }
+
+    /* Lower-Right Panel: Moves, Actions, Controls & HUD */
+    #hud {
+      position: fixed;
+      top: calc(50% + 8px);
+      bottom: 16px;
+      right: 20px;
+      width: calc(50vw - 30px);
+      display: flex;
+      flex-direction: column;
+      z-index: 20;
+      box-sizing: border-box;
+    }
+
+    #hud .panel {
+      flex: 1;
+      min-height: 0;
+      overflow-y: auto;
+      padding: 13px 15px;
+      position: static;
+      width: 100%;
+      height: 100%;
+      box-sizing: border-box;
+      display: flex;
+      flex-direction: column;
+      box-shadow: none;
+    }
+
+    .hud-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 14px;
+      height: 100%;
+      min-height: 0;
+    }
+
+    .hud-col {
+      display: flex;
+      flex-direction: column;
+      min-height: 0;
+      overflow-y: auto;
+      padding-right: 2px;
+    }
+    .hud-col::-webkit-scrollbar { width: 4px; }
+    .hud-col::-webkit-scrollbar-thumb { background: var(--line); border-radius: 4px; }
+
+    .row {
+      display: flex;
+      gap: 6px;
+      align-items: center;
+      margin-bottom: 6px;
+    }
+
+    .row.label {
+      font-size: 10.5px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: var(--muted);
+      margin-top: 2px;
+      margin-bottom: 4px;
+    }
+
+    .row.label.between {
+      justify-content: space-between;
+    }
+
+    .history-count {
+      color: var(--cyan);
+      font-size: 10px;
+      text-transform: none;
+      font-weight: 600;
+    }
+
+    /* Extended-Height History Box */
+    .history-box {
+      flex: 1;
+      min-height: 110px;
+      max-height: 150px;
+      background: rgba(0, 0, 0, 0.32);
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      padding: 6px;
+      overflow-y: auto;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 4px;
+      align-content: flex-start;
+    }
+    .history-box::-webkit-scrollbar { width: 4px; }
+    .history-box::-webkit-scrollbar-thumb { background: var(--line); border-radius: 4px; }
+
+    .history-empty {
+      width: 100%;
+      text-align: center;
+      color: var(--muted);
+      font-size: 11px;
+      padding-top: 36px;
+      font-style: italic;
+    }
+
+    .hist-chip {
+      padding: 3px 6px;
+      font-size: 10.5px;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+      font-weight: 600;
+      letter-spacing: 0.03em;
+      border-radius: 4px;
+      border: 1px solid rgba(190, 216, 210, 0.2);
+      background: rgba(255, 255, 255, 0.05);
+      color: var(--ink);
+      cursor: pointer;
+      line-height: 1.2;
+      flex: 0 0 auto;
+      min-width: unset;
+      transition: all 0.15s ease;
+      display: inline-flex;
+      flex-direction: row;
+      align-items: center;
+      justify-content: center;
+      gap: 3px;
+      white-space: nowrap;
+    }
+
+    .hist-chip:hover {
+      background: rgba(255, 140, 26, 0.25);
+      border-color: var(--accent);
+      transform: translateY(-1px);
+    }
+
+    .hist-chip.active {
+      background: rgba(255, 140, 26, 0.35);
+      border-color: var(--accent);
+      color: #fff;
+      box-shadow: 0 0 8px rgba(255, 140, 26, 0.4);
+    }
+
+    .hist-chip.hist-start {
+      background: rgba(111, 227, 198, 0.12);
+      border-color: rgba(111, 227, 198, 0.3);
+      color: var(--cyan);
+    }
+    .hist-chip.hist-start:hover {
+      background: rgba(111, 227, 198, 0.25);
+      border-color: var(--cyan);
+    }
+
+    .hist-chip[data-face="U"] { border-left: 3px solid #f0f0f0; }
+    .hist-chip[data-face="D"] { border-left: 3px solid #ffd500; }
+    .hist-chip[data-face="F"] { border-left: 3px solid #00d084; }
+    .hist-chip[data-face="B"] { border-left: 3px solid #0080ff; }
+    .hist-chip[data-face="R"] { border-left: 3px solid #ff4d4f; }
+    .hist-chip[data-face="L"] { border-left: 3px solid #ff9900; }
+    .hist-chip[data-face="Uw"] { border-left: 3px solid #f0f0f0; }
+    .hist-chip[data-face="Dw"] { border-left: 3px solid #ffd500; }
+    .hist-chip[data-face="Rw"] { border-left: 3px solid #ff4d4f; }
+    .hist-chip[data-face="Lw"] { border-left: 3px solid #ff9900; }
+    .hist-chip[data-face="Fw"] { border-left: 3px solid #00d084; }
+    .hist-chip[data-face="Bw"] { border-left: 3px solid #0080ff; }
+
+    .grid-6 { display: grid; grid-template-columns: repeat(6, 1fr); gap: 4px; width: 100%; }
+    .grid-6 button { padding: 5px 2px; font-size: 11px; }
+    .grid-4 { display: grid; grid-template-columns: repeat(4, 1fr); gap: 5px; width: 100%; }
+    .grid-4 button { padding: 6px 2px; font-size: 10.5px; letter-spacing: 0.02em; gap: 3px; }
+    .grid-3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 5px; width: 100%; }
+    .grid-3 button { padding: 6px 4px; font-size: 11px; gap: 4px; }
+    .grid-2 { display: grid; grid-template-columns: repeat(2, 1fr); gap: 5px; width: 100%; }
+
+    .btn-icon-sub {
+      font-size: 11px;
+      line-height: 1;
+      display: inline-block;
+      flex-shrink: 0;
+      opacity: 0.9;
+    }
+
+    button {
+      font-family: inherit;
+      background: rgba(255, 255, 255, 0.05);
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      color: var(--ink);
+      padding: 7px 0;
+      font-size: 11px;
+      letter-spacing: 0.05em;
+      cursor: pointer;
+      transition: all 0.15s ease;
+      display: inline-flex;
+      flex-direction: row;
+      align-items: center;
+      justify-content: center;
+      gap: 3px;
+      position: relative;
+      min-width: 0;
+      white-space: nowrap;
+    }
+
+    button:hover {
+      background: rgba(111, 227, 198, 0.15);
+      border-color: var(--cyan);
+      color: #fff;
+    }
+
+    button:active { transform: translateY(1px); }
+
+    button.active {
+      background: rgba(111, 227, 198, 0.22);
+      border-color: var(--cyan);
+      color: var(--cyan);
+      font-weight: 600;
+    }
+
+    button:disabled,
+    button[disabled] {
+      opacity: 0.38;
+      cursor: not-allowed;
+      pointer-events: none;
+      border-color: var(--line) !important;
+      background: rgba(0, 0, 0, 0.2) !important;
+      color: var(--muted) !important;
+      box-shadow: none !important;
+      transform: none !important;
+    }
+
+    .move-btn {
+      height: 32px;
+      font-weight: 600;
+      display: inline-flex;
+      flex-direction: row;
+      align-items: center;
+      justify-content: center;
+      gap: 2px;
+    }
+    .move-btn::before {
+      content: "";
+      position: absolute;
+      top: 0;
+      left: 6px;
+      right: 6px;
+      height: 2px;
+      border-radius: 0 0 2px 2px;
+      opacity: 0.8;
+    }
+
+    .move-btn[data-face="U"]::before, .move-btn[data-face="Uw"]::before { background: #f0f0f0; }
+    .move-btn[data-face="D"]::before, .move-btn[data-face="Dw"]::before { background: #ffd500; }
+    .move-btn[data-face="F"]::before, .move-btn[data-face="Fw"]::before { background: #00d084; }
+    .move-btn[data-face="B"]::before, .move-btn[data-face="Bw"]::before { background: #0080ff; }
+    .move-btn[data-face="R"]::before, .move-btn[data-face="Rw"]::before { background: #ff4d4f; }
+    .move-btn[data-face="L"]::before, .move-btn[data-face="Lw"]::before { background: #ff9900; }
+
+    .slider-row {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      width: 100%;
+      font-size: 11px;
+      color: var(--muted);
+    }
+
+    .slider-row input[type="range"] {
+      flex: 1;
+      height: 4px;
+      border-radius: 2px;
+      background: rgba(255, 255, 255, 0.15);
+      accent-color: var(--cyan);
+      outline: none;
+    }
+
+    .toggle-row {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 11px;
+      color: var(--muted);
+      cursor: pointer;
+    }
+
+    /* Modern Toggle Switch */
+    .toggle-switch {
+      position: relative;
+      display: inline-block;
+      width: 34px;
+      height: 18px;
+    }
+    .toggle-switch input {
+      opacity: 0;
+      width: 0;
+      height: 0;
+    }
+    .toggle-slider {
+      position: absolute;
+      cursor: pointer;
+      top: 0; left: 0; right: 0; bottom: 0;
+      background: rgba(255, 255, 255, 0.15);
+      transition: .25s;
+      border-radius: 18px;
+      border: 1px solid var(--line);
+    }
+    .toggle-slider:before {
+      position: absolute;
+      content: "";
+      height: 12px;
+      width: 12px;
+      left: 2px;
+      bottom: 2px;
+      background-color: var(--ink);
+      transition: .25s;
+      border-radius: 50%;
+    }
+    .toggle-switch input:checked + .toggle-slider {
+      background-color: var(--cyan);
+      border-color: var(--cyan);
+    }
+    .toggle-switch input:checked + .toggle-slider:before {
+      transform: translateX(16px);
+      background-color: #101a18;
+    }
+
+    .color-blind-legend {
+      display: none;
+      width: 100%;
+      margin-top: 5px;
+      font-size: 10.5px;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+      color: var(--muted);
+      justify-content: space-between;
+      padding: 3px 6px;
+      background: rgba(0, 0, 0, 0.25);
+      border-radius: 6px;
+      border: 1px solid rgba(190, 216, 210, 0.15);
+    }
+    body.color-blind-mode .color-blind-legend {
+      display: flex;
+    }
+
+    /* Move buttons, circle buttons, and history chips color blind symbols (placed on the right of text) */
+    body.color-blind-mode .move-btn[data-face="U"]::after, body.color-blind-mode .move-btn[data-face="Uw"]::after { content: "○"; font-size: 8.5px; opacity: 0.95; margin-left: 2px; color: #f5f5f5; }
+    body.color-blind-mode .move-btn[data-face="D"]::after, body.color-blind-mode .move-btn[data-face="Dw"]::after { content: "●"; font-size: 8.5px; opacity: 0.95; margin-left: 2px; color: #ffd500; }
+    body.color-blind-mode .move-btn[data-face="F"]::after, body.color-blind-mode .move-btn[data-face="Fw"]::after { content: "✚"; font-size: 8.5px; opacity: 0.95; margin-left: 2px; color: #00d084; }
+    body.color-blind-mode .move-btn[data-face="B"]::after, body.color-blind-mode .move-btn[data-face="Bw"]::after { content: "△"; font-size: 8.5px; opacity: 0.95; margin-left: 2px; color: #0080ff; }
+    body.color-blind-mode .move-btn[data-face="R"]::after, body.color-blind-mode .move-btn[data-face="Rw"]::after { content: "□"; font-size: 8.5px; opacity: 0.95; margin-left: 2px; color: #ff4d4f; }
+    body.color-blind-mode .move-btn[data-face="L"]::after, body.color-blind-mode .move-btn[data-face="Lw"]::after { content: "★"; font-size: 8.5px; opacity: 0.95; margin-left: 2px; color: #ff9900; }
+
+    body.color-blind-mode .circle-rot-btn[data-face="U"]::after { content: " ○"; font-size: 8px; opacity: 0.95; color: #f5f5f5; }
+    body.color-blind-mode .circle-rot-btn[data-face="D"]::after { content: " ●"; font-size: 8px; opacity: 0.95; color: #ffd500; }
+    body.color-blind-mode .circle-rot-btn[data-face="F"]::after { content: " ✚"; font-size: 8px; opacity: 0.95; color: #00d084; }
+    body.color-blind-mode .circle-rot-btn[data-face="B"]::after { content: " △"; font-size: 8px; opacity: 0.95; color: #0080ff; }
+    body.color-blind-mode .circle-rot-btn[data-face="R"]::after { content: " □"; font-size: 8px; opacity: 0.95; color: #ff4d4f; }
+    body.color-blind-mode .circle-rot-btn[data-face="L"]::after { content: " ★"; font-size: 8px; opacity: 0.95; color: #ff9900; }
+
+    body.color-blind-mode .hist-chip[data-face="U"]::after, body.color-blind-mode .hist-chip[data-face="Uw"]::after { content: "○"; font-size: 8px; opacity: 0.95; margin-left: 3px; color: #f5f5f5; }
+    body.color-blind-mode .hist-chip[data-face="D"]::after, body.color-blind-mode .hist-chip[data-face="Dw"]::after { content: "●"; font-size: 8px; opacity: 0.95; margin-left: 3px; color: #ffd500; }
+    body.color-blind-mode .hist-chip[data-face="F"]::after, body.color-blind-mode .hist-chip[data-face="Fw"]::after { content: "✚"; font-size: 8px; opacity: 0.95; margin-left: 3px; color: #00d084; }
+    body.color-blind-mode .hist-chip[data-face="B"]::after, body.color-blind-mode .hist-chip[data-face="Bw"]::after { content: "△"; font-size: 8px; opacity: 0.95; margin-left: 3px; color: #0080ff; }
+    body.color-blind-mode .hist-chip[data-face="R"]::after, body.color-blind-mode .hist-chip[data-face="Rw"]::after { content: "□"; font-size: 8px; opacity: 0.95; margin-left: 3px; color: #ff4d4f; }
+    body.color-blind-mode .hist-chip[data-face="L"]::after, body.color-blind-mode .hist-chip[data-face="Lw"]::after { content: "★"; font-size: 8px; opacity: 0.95; margin-left: 3px; color: #ff9900; }
+
+    #ticker {
+      position: fixed;
+      top: calc(50% - 20px);
+      right: 24px;
+      transform: translateY(-50%);
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+      font-size: 13px;
+      font-weight: 700;
+      letter-spacing: 0.15em;
+      color: var(--cyan);
+      background: rgba(14, 24, 22, 0.9);
+      border: 1px solid rgba(111, 227, 198, 0.4);
+      padding: 5px 16px;
+      border-radius: 20px;
+      backdrop-filter: blur(10px);
+      pointer-events: none;
+      z-index: 25;
+      text-shadow: 0 0 10px rgba(111, 227, 198, 0.5);
+      box-shadow: 0 4px 16px rgba(0, 0, 0, 0.5);
+    }
+
+    #hint {
+      position: fixed;
+      bottom: calc(50% + 12px);
+      right: 24px;
+      color: var(--muted);
+      font-size: 11px;
+      letter-spacing: 0.05em;
+      pointer-events: none;
+      z-index: 5;
+      text-shadow: 0 1px 4px rgba(0, 0, 0, 0.8);
+    }
+
+    /* Overlay Ring Interactive Buttons */
+    #circleControlsOverlay {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 50%;
+      height: 50%;
+      pointer-events: none;
+      z-index: 15;
+    }
+
+    .circle-rot-btn {
+      position: absolute;
+      transform: translate(-50%, -50%);
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      min-width: 20px;
+      height: 20px;
+      padding: 0 4px;
+      border-radius: 10px;
+      background: rgba(16, 26, 24, 0.92);
+      border: 1.5px solid var(--line);
+      color: var(--ink);
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+      font-size: 11px;
+      font-weight: 700;
+      line-height: 1;
+      cursor: pointer;
+      pointer-events: auto;
+      backdrop-filter: blur(8px);
+      -webkit-backdrop-filter: blur(8px);
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.5);
+      transition: transform 0.15s ease, box-shadow 0.15s ease, background-color 0.15s ease;
+      z-index: 16;
+      user-select: none;
+      white-space: nowrap;
+    }
+
+    .circle-rot-btn:hover {
+      transform: translate(-50%, -50%) scale(1.15);
+      border-color: var(--cyan);
+      box-shadow: 0 0 12px rgba(111, 227, 198, 0.6);
+      background: rgba(22, 38, 34, 0.98);
+    }
+    .circle-rot-btn:active {
+      transform: translate(-50%, -50%) scale(0.95);
+    }
+
+    .circle-rot-btn[data-face="U"] { border-color: #f0f0f0; color: #f0f0f0; }
+    .circle-rot-btn[data-face="D"] { border-color: #ffd500; color: #ffd500; }
+    .circle-rot-btn[data-face="F"] { border-color: #00d084; color: #00d084; }
+    .circle-rot-btn[data-face="B"] { border-color: #0080ff; color: #0080ff; }
+    .circle-rot-btn[data-face="R"] { border-color: #ff4d4f; color: #ff4d4f; }
+    .circle-rot-btn[data-face="L"] { border-color: #ff9900; color: #ff9900; }
+
+    .circle-rot-btn[data-face="U"]:hover { background: rgba(240, 240, 240, 0.25); box-shadow: 0 0 10px rgba(240, 240, 240, 0.5); }
+    .circle-rot-btn[data-face="D"]:hover { background: rgba(255, 213, 0, 0.25); box-shadow: 0 0 10px rgba(255, 213, 0, 0.5); }
+    .circle-rot-btn[data-face="F"]:hover { background: rgba(0, 208, 132, 0.25); box-shadow: 0 0 10px rgba(0, 208, 132, 0.5); }
+    .circle-rot-btn[data-face="B"]:hover { background: rgba(0, 128, 255, 0.25); box-shadow: 0 0 10px rgba(0, 128, 255, 0.5); }
+    .circle-rot-btn[data-face="R"]:hover { background: rgba(255, 77, 79, 0.25); box-shadow: 0 0 10px rgba(255, 77, 79, 0.5); }
+    .circle-rot-btn[data-face="L"]:hover { background: rgba(255, 153, 0, 0.25); box-shadow: 0 0 10px rgba(255, 153, 0, 0.5); }
+
+    /* 3D Cube Interactive Controls Widget */
+    #cubeControlsWidget {
+      display: none !important;
+    }
+
+    @media (max-width: 900px) {
+      .quadrant-divider-h, .quadrant-divider-v { display: none; }
+      #methods-panel { width: calc(100% - 24px); height: 240px; }
+      #hud { width: calc(100% - 24px); height: auto; bottom: 260px; }
+    }
+  </style>
+
+  <script type="importmap">
+  {
+    "imports": {
+      "three": "https://cdn.jsdelivr.net/npm/three@0.169.0/build/three.module.js",
+      "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.169.0/examples/jsm/"
+    }
+  }
+  </script>
+</head>
+<body>
+  <div id="app"></div>
+
+  <!-- Quadrant Dividers & Tags -->
+  <div class="quadrant-divider-h"></div>
+  <div class="quadrant-divider-v"></div>
+
+  <div class="quadrant-tag tag-top-left">
+    <span class="dot-indicator"></span>
+    <span>2D 四环投影 · 2D Circles</span>
+  </div>
+
+  <div class="quadrant-tag tag-top-right">
+    <span class="dot-indicator green"></span>
+    <span>3D 实体魔方 · 3D Cube</span>
+  </div>
+
+  <!-- Interactive 2D Circle Rotation Buttons Overlay -->
+  <div id="circleControlsOverlay">
+    <button class="circle-rot-btn" id="btn-rot-U-ccw" data-face="U" data-turns="-1" title="逆时针旋转顶层外环 U'">U'</button>
+    <button class="circle-rot-btn" id="btn-rot-U-cw" data-face="U" data-turns="1" title="顺时针旋转顶层外环 U">U</button>
+    <button class="circle-rot-btn" id="btn-rot-D-ccw" data-face="D" data-turns="-1" title="逆时针旋转底层内环 D'">D'</button>
+    <button class="circle-rot-btn" id="btn-rot-D-cw" data-face="D" data-turns="1" title="顺时针旋转底层内环 D">D</button>
+
+    <button class="circle-rot-btn" id="btn-rot-F-ccw" data-face="F" data-turns="-1" title="逆时针旋转前层外环 F'">F'</button>
+    <button class="circle-rot-btn" id="btn-rot-F-cw" data-face="F" data-turns="1" title="顺时针旋转前层外环 F">F</button>
+    <button class="circle-rot-btn" id="btn-rot-B-ccw" data-face="B" data-turns="-1" title="逆时针旋转后层内环 B'">B'</button>
+    <button class="circle-rot-btn" id="btn-rot-B-cw" data-face="B" data-turns="1" title="顺时针旋转后层内环 B">B</button>
+
+    <button class="circle-rot-btn" id="btn-rot-R-ccw" data-face="R" data-turns="-1" title="逆时针旋转右层外环 R'">R'</button>
+    <button class="circle-rot-btn" id="btn-rot-R-cw" data-face="R" data-turns="1" title="顺时针旋转右层外环 R">R</button>
+    <button class="circle-rot-btn" id="btn-rot-L-ccw" data-face="L" data-turns="-1" title="逆时针旋转左层内环 L'">L'</button>
+    <button class="circle-rot-btn" id="btn-rot-L-cw" data-face="L" data-turns="1" title="顺时针旋转左层内环 L">L</button>
+  </div>
+
+  <header id="title">
+    <h1>换个角度，解开魔方 (4×4)</h1>
+    <p>4D/4阶实体魔方与 2D 四重同心环系统投影实时双向联动 · Rubik's Revenge 4×4</p>
+  </header>
+
+  <a id="btnBackHub" href="./index.html" class="btn-hub" title="返回魔方大厅选关 · Return to Cube Dimension Picker">
+    <span>◫</span>
+    <span>魔方大厅 · Hub</span>
+  </a>
+
+  <button id="toggleMethodsFloat">📖 Methods</button>
+
+  <div id="methods-panel" class="panel">
+    <div class="panel-header">
+      <div class="panel-title">
+        <span>📖</span> 解法步骤 · Methods
+      </div>
+      <button id="toggleMethods" class="btn-icon" title="收起/展开面板">−</button>
+    </div>
+
+    <!-- Scramble Status Banner -->
+    <div id="methodScrambleStatus" class="method-scramble-status active">
+      <span class="status-indicator"></span>
+      <span id="scrambleStatusText">🎉 当前魔方已处于完全复原状态 · Cube Solved!</span>
+    </div>
+
+    <!-- Update Solution Button -->
+    <button id="btnUpdateSolution" class="btn-update-solution" title="根据当前魔方状态实时计算并更新所有解法步骤">
+      <span class="btn-update-icon">⚡</span>
+      <span class="btn-update-label">更新解法 · Update Solution</span>
+    </button>
+
+    <!-- Tabs on Top -->
+    <div class="tabs" id="methodTabs">
+      <button class="tab active" data-tab="reduction">Reduction</button>
+      <button class="tab" data-tab="yau">Yau</button>
+      <button class="tab" data-tab="hoya">Hoya</button>
+      <button class="tab" data-tab="parity">Parity</button>
+    </div>
+
+    <!-- Reduction Method Content -->
+    <div class="tab-content active" id="content-reduction">
+      <div class="step-card">
+        <div class="step-title">
+          <span>1. 还原六面中心块 (6 Centers)</span>
+          <span class="step-badge">Step 1</span>
+        </div>
+        <div class="step-desc">四阶无固定中心，需按正确配色顺次复原六面中心（每个面 4 颗中心块）。</div>
+        <div class="alg-box">
+          <span class="alg-text">中心配对: Rw U Rw' U Rw U2 Rw'</span>
+          <button class="btn-run" data-alg="Rw U Rw' U Rw U2 Rw'">▶ 运行</button>
+        </div>
+      </div>
+
+      <div class="step-card">
+        <div class="step-title">
+          <span>2. 棱块配对合并 (Edge Pairing)</span>
+          <span class="step-badge">Step 2</span>
+        </div>
+        <div class="step-desc">将 24 颗翼棱块两两拼合成 12 组完整双棱，使之等效于三阶标准棱块。</div>
+        <div class="alg-box">
+          <span class="alg-text">合并棱块: Uw R U R' F R' F' R Uw'</span>
+          <button class="btn-run" data-alg="Uw R U R' F R' F' R Uw'">▶ 运行</button>
+        </div>
+      </div>
+
+      <div class="step-card">
+        <div class="step-title">
+          <span>3. 三阶阶段还原 (3×3 Stage CFOP)</span>
+          <span class="step-badge">Step 3</span>
+        </div>
+        <div class="step-desc">中心与棱块合并完毕后，魔方完全降阶为三阶，仅转动外层即可完成主体复原。</div>
+        <div class="alg-box">
+          <span class="alg-text">右手四步: R U R' U'</span>
+          <button class="btn-run" data-alg="R U R' U'">▶ 运行</button>
+        </div>
+        <div class="alg-box">
+          <span class="alg-text">小鱼翻色: R U R' U R U2 R'</span>
+          <button class="btn-run" data-alg="R U R' U R U2 R'">▶ 运行</button>
+        </div>
+      </div>
+
+      <div class="step-card">
+        <div class="step-title">
+          <span>4. 特殊态修正 (Parity Fixes)</span>
+          <span class="step-badge">Step 4</span>
+        </div>
+        <div class="step-desc">偶数阶特有现象：单翻棱 (OLL Parity) 或 对边互换 (PLL Parity)。</div>
+        <div class="alg-box">
+          <span class="alg-text">PLL对边换: 2R2 U2 2R2 Uw2 2R2 2Uw2</span>
+          <button class="btn-run" data-alg="Rw2 U2 Rw2 Uw2 Rw2 Uw2">▶ 运行</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Yau Method Content -->
+    <div class="tab-content" id="content-yau">
+      <div class="step-card">
+        <div class="step-title">
+          <span>Step 1: 白黄相对两中心 (First 2 Centers)</span>
+          <span class="step-badge">Step 1</span>
+        </div>
+        <div class="step-desc">优先拼好底面白色中心与相对的顶面黄色中心。</div>
+        <div class="alg-box">
+          <span class="alg-text">上中心拼合: Rw U2 Rw'</span>
+          <button class="btn-run" data-alg="Rw U2 Rw'">▶ 运行</button>
+        </div>
+      </div>
+
+      <div class="step-card">
+        <div class="step-title">
+          <span>Step 2: 底面三条十字棱 (First 3 Cross Edges)</span>
+          <span class="step-badge">Step 2</span>
+        </div>
+        <div class="step-desc">在底层构建 3 组带白色复合棱，空出 1 个槽位作为自由切片通道。</div>
+        <div class="alg-box">
+          <span class="alg-text">切片入槽: Uw' R U R' Uw</span>
+          <button class="btn-run" data-alg="Uw' R U R' Uw">▶ 运行</button>
+        </div>
+      </div>
+
+      <div class="step-card">
+        <div class="step-title">
+          <span>Step 3: 还原其余四中心 (Last 4 Centers)</span>
+          <span class="step-badge">Step 3</span>
+        </div>
+        <div class="step-desc">利用未拼合的顶面自由旋转中轴切片，快速还原剩余 4 个侧面中心。</div>
+        <div class="alg-box">
+          <span class="alg-text">侧中心互换: Rw U Rw'</span>
+          <button class="btn-run" data-alg="Rw U Rw'">▶ 运行</button>
+        </div>
+      </div>
+
+      <div class="step-card">
+        <div class="step-title">
+          <span>Step 4: 3-2-3 棱块合并与 CFOP (Finish)</span>
+          <span class="step-badge">Step 4</span>
+        </div>
+        <div class="step-desc">补齐最后一条十字棱，使用 3-2-3 高速配对法完成全部棱块并无缝衔接 CFOP。</div>
+        <div class="alg-box">
+          <span class="alg-text">3-2-3配对: Uw' R U' R' Uw</span>
+          <button class="btn-run" data-alg="Uw' R U' R' Uw">▶ 运行</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Hoya Method Content -->
+    <div class="tab-content" id="content-hoya">
+      <div class="step-card">
+        <div class="step-title">
+          <span>Step 1: 还原两相对中心 (First 2 Centers)</span>
+          <span class="step-badge">Step 1</span>
+        </div>
+        <div class="step-desc">首先还原底层白色和相对面中心。</div>
+        <div class="alg-box">
+          <span class="alg-text">示例: Rw U Rw'</span>
+          <button class="btn-run" data-alg="Rw U Rw'">▶ 运行</button>
+        </div>
+      </div>
+
+      <div class="step-card">
+        <div class="step-title">
+          <span>Step 2: 底层 4 条十字棱 (D-Cross)</span>
+          <span class="step-badge">Step 2</span>
+        </div>
+        <div class="step-desc">一次性将底层 4 组十字棱全部拼好并归位，为后续大幅减少转体。</div>
+        <div class="alg-box">
+          <span class="alg-text">配对下沉: Uw R' F R Uw'</span>
+          <button class="btn-run" data-alg="Uw R' F R Uw'">▶ 运行</button>
+        </div>
+      </div>
+
+      <div class="step-card">
+        <div class="step-title">
+          <span>Step 3: 还原剩下 4 个中心块 (Last 4 Centers)</span>
+          <span class="step-badge">Step 3</span>
+        </div>
+        <div class="step-desc">限制在顶层和中层自由度内解决剩余 4 个侧面中心。</div>
+        <div class="alg-box">
+          <span class="alg-text">中层配对: Rw U' Rw'</span>
+          <button class="btn-run" data-alg="Rw U' Rw'">▶ 运行</button>
+        </div>
+      </div>
+
+      <div class="step-card">
+        <div class="step-title">
+          <span>Step 4: 自由切片合并余下 8 条棱 (Edge Pairing)</span>
+          <span class="step-badge">Step 4</span>
+        </div>
+        <div class="step-desc">利用自由切片通道在顶层及中层极速配对最后 8 条棱。</div>
+        <div class="alg-box">
+          <span class="alg-text">切片互换: Uw' R U R' F R' F' R Uw</span>
+          <button class="btn-run" data-alg="Uw' R U R' F R' F' R Uw">▶ 运行</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Parity Content -->
+    <div class="tab-content" id="content-parity">
+      <div class="step-card">
+        <div class="step-title">
+          <span>OLL 特殊态: 单翻棱 (Single Edge Flip)</span>
+          <span class="step-badge">OLL Parity</span>
+        </div>
+        <div class="step-desc">顶层出现仅有 1 组或 3 组棱块朝向错误的不可思议状态（三阶不可能出现）。</div>
+        <div class="alg-box">
+          <span class="alg-text">单翻棱: Rw U2 x Rw U2 Rw U2 Rw' U2 Lw U2 Rw' U2 Rw U2 Rw' U2 Rw'</span>
+          <button class="btn-run" data-alg="Rw U2 Rw U2 Rw U2 Rw' U2 Lw U2 Rw' U2 Rw U2 Rw' U2 Rw'">▶ 运行</button>
+        </div>
+      </div>
+
+      <div class="step-card">
+        <div class="step-title">
+          <span>PLL 特殊态: 对边互换 (Opposite Edge Swap)</span>
+          <span class="step-badge">PLL Parity</span>
+        </div>
+        <div class="step-desc">顶层仅有相对的两对对边需要互换，其余全部还原。</div>
+        <div class="alg-box">
+          <span class="alg-text">对边换: Rw2 U2 Rw2 Uw2 Rw2 Uw2</span>
+          <button class="btn-run" data-alg="Rw2 U2 Rw2 Uw2 Rw2 Uw2">▶ 运行</button>
+        </div>
+      </div>
+
+      <div class="step-card">
+        <div class="step-title">
+          <span>PLL 特殊态: 邻边互换 (Adjacent Edge Swap)</span>
+          <span class="step-badge">PLL Parity</span>
+        </div>
+        <div class="step-desc">顶层仅有相邻的两对棱需要互换，先执行对边换再接一个 T-Perm 即可。</div>
+        <div class="alg-box">
+          <span class="alg-text">邻边换: Rw2 U2 Rw2 Uw2 Rw2 Uw2 R U R' U' R' F R2 U' R' U' R U R' F'</span>
+          <button class="btn-run" data-alg="Rw2 U2 Rw2 Uw2 Rw2 Uw2 R U R' U' R' F R2 U' R' U' R U R' F'">▶ 运行</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div id="hud">
+    <div class="panel">
+      <div class="hud-grid">
+        <!-- Col 1: Moves & History -->
+        <div class="hud-col">
+          <div class="row label">Moves · 外层旋转指令</div>
+          <div class="row grid-4" id="moves"></div>
+          <div class="row label" style="margin-top: 4px;">Wide Moves · 双层旋转指令</div>
+          <div class="row grid-4" id="wideMoves" style="margin-bottom: 6px;"></div>
+
+          <div class="row label between" style="margin-top: 4px;">
+            <span>History · 历史步骤</span>
+            <span id="historyCount" class="history-count">0 moves</span>
+          </div>
+          <div id="historyBox" class="history-box">
+            <div class="history-empty">暂无步骤 · No moves yet</div>
+          </div>
+        </div>
+
+        <!-- Col 2: Actions, View, Controls & Speed -->
+        <div class="hud-col">
+          <div class="row label">Actions · 快捷操作</div>
+          <div class="row grid-4">
+            <button data-act="scramble" title="随机打乱魔方"><span class="btn-icon-sub">🔀</span><span>Scramble</span></button>
+            <button data-act="solve" title="按公式分步还原"><span class="btn-icon-sub">✨</span><span>Solve</span></button>
+            <button data-act="undo" title="撤回上一步"><span class="btn-icon-sub">↩</span><span>Undo</span></button>
+            <button data-act="reset" title="复位到完全还原状态"><span class="btn-icon-sub">↺</span><span>Reset</span></button>
+          </div>
+
+          <div class="row label" style="margin-top: 4px;">View & Controls · 视图与控制</div>
+          <div class="row grid-3" id="view-mode">
+            <button data-view="both" class="active"><span class="btn-icon-sub">◫</span><span>Both</span></button>
+            <button data-view="cube"><span class="btn-icon-sub">🧊</span><span>Cube</span></button>
+            <button data-view="circles"><span class="btn-icon-sub">◎</span><span>Circles</span></button>
+          </div>
+          <div class="row grid-4" style="margin-bottom: 8px;">
+            <button id="hudBtnCtrlHide" title="隐藏所有旋转图标"><span class="btn-icon-sub">⊘</span><span>Hide</span></button>
+            <button id="hudBtnCtrlCorner" title="角块控制"><span class="btn-icon-sub">◸</span><span>Corner</span></button>
+            <button id="hudBtnCtrlLevel" title="边块控制"><span class="btn-icon-sub">⬒</span><span>Edge</span></button>
+            <button id="hudBtnCtrlFace" class="active" title="面中心旋转控制 (顺/逆时针)"><span class="btn-icon-sub">▣</span><span>Face</span></button>
+          </div>
+
+          <div class="row label" style="margin-top: 4px;">Settings · 速度与视角</div>
+          <div class="row" style="display: flex; gap: 10px; align-items: center; margin-bottom: 0;">
+            <div class="slider-row" style="flex: 1;">
+              <input type="range" id="speed" min="0.25" max="3" step="0.25" value="1" />
+              <span id="speed-val" style="min-width: 32px; text-align: right;">1.0×</span>
+            </div>
+            <div class="toggle-row" style="flex: 1; justify-content: flex-end; gap: 8px;">
+              <span style="font-size: 11px;">Auto-rotate</span>
+              <input type="checkbox" id="auto-rotate" />
+            </div>
+          </div>
+
+          <div class="row" style="display: flex; flex-direction: column; margin-top: 6px; margin-bottom: 0;">
+            <div class="toggle-row" style="justify-content: space-between; width: 100%;">
+              <span style="display: inline-flex; align-items: center; gap: 6px; font-size: 11px;">
+                <span style="font-size: 13px;">👁️</span>
+                <span>色弱模式 · Color Blind Mode</span>
+              </span>
+              <label class="toggle-switch" title="开启/关闭色弱辅助符号 · Toggle Color Blind Symbols">
+                <input type="checkbox" id="color-blind-toggle" />
+                <span class="toggle-slider"></span>
+              </label>
+            </div>
+            <div class="color-blind-legend" id="colorBlindLegend" title="各面对应符号与高对比色 · Face Symbols & High-Contrast Colors">
+              <span style="background: #f5f5f5; color: #111111; padding: 2px 6px; border-radius: 4px; font-weight: 700; box-shadow: 0 1px 3px rgba(0,0,0,0.3);">U ○</span>
+              <span style="background: #ffd500; color: #111111; padding: 2px 6px; border-radius: 4px; font-weight: 700; box-shadow: 0 1px 3px rgba(0,0,0,0.3);">D ●</span>
+              <span style="background: #1fa04a; color: #ffffff; padding: 2px 6px; border-radius: 4px; font-weight: 700; box-shadow: 0 1px 3px rgba(0,0,0,0.3);">F ✚</span>
+              <span style="background: #1663c7; color: #ffffff; padding: 2px 6px; border-radius: 4px; font-weight: 700; box-shadow: 0 1px 3px rgba(0,0,0,0.3);">B △</span>
+              <span style="background: #d6262b; color: #ffffff; padding: 2px 6px; border-radius: 4px; font-weight: 700; box-shadow: 0 1px 3px rgba(0,0,0,0.3);">R □</span>
+              <span style="background: #e07a20; color: #ffffff; padding: 2px 6px; border-radius: 4px; font-weight: 700; box-shadow: 0 1px 3px rgba(0,0,0,0.3);">L ★</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div id="ticker">READY</div>
+  <div id="hint">拖拽旋转 3D 视角 · 滚轮缩放 · 双视角实时联动</div>
+
+  <script type="module">
+    import * as THREE from 'three';
+    import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+
+    // ------------------------------------------------------------- Constants & Configuration
+    const THEME = {
+      background: 0x22302d,
+      cubieBody: 0x141e1c,
+      ringInactive: 0x8fa8a1,
+      ringActive: 0xff8c1a,
+    };
+
+    const COLORS = {
+      U: 0xf5f5f5, // White
+      D: 0xf7d91a, // Yellow
+      F: 0x1fa04a, // Green
+      B: 0x1663c7, // Blue
+      R: 0xd6262b, // Red
+      L: 0xe07a20, // Orange
+    };
+
+    const FACE_HEX_STRINGS = {
+      U: '#f5f5f5',
+      D: '#f7d91a',
+      F: '#1fa04a',
+      B: '#1663c7',
+      R: '#d6262b',
+      L: '#e07a20',
+    };
+
+    const OPPOSITE_FACES = {
+      U: 'D',
+      D: 'U',
+      F: 'B',
+      B: 'F',
+      R: 'L',
+      L: 'R',
+    };
+
+    const FACE_SYMBOLS = {
+      U: 'circle',
+      D: 'dot',
+      F: 'cross',
+      B: 'triangle',
+      R: 'square',
+      L: 'star',
+    };
+
+    const SYMBOL_COLORS = {
+      U: '#111111', // Pure black on white
+      D: '#111111', // Pure black on yellow
+      F: '#ffffff', // Pure white on green
+      B: '#ffffff', // Pure white on blue
+      R: '#ffffff', // Pure white on red
+      L: '#ffffff', // Pure white on orange
+    };
+
+    const FACES = ['U', 'D', 'F', 'B', 'R', 'L'];
+
+    const NORMALS = {
+      U: new THREE.Vector3(0, 1, 0),
+      D: new THREE.Vector3(0, -1, 0),
+      F: new THREE.Vector3(0, 0, 1),
+      B: new THREE.Vector3(0, 0, -1),
+      R: new THREE.Vector3(1, 0, 0),
+      L: new THREE.Vector3(-1, 0, 0),
+    };
+
+    function faceOfNormal(v) {
+      for (const f of FACES) {
+        if (NORMALS[f].equals(v)) return f;
+      }
+      return null;
+    }
+
+    // Geometry parameters of the 2D Four-Ring System for 4x4
+    const RING_CONFIG = {
+      D: 0.82,       // distance from origin to circle centers
+      r0: 1.0,       // base radius
+      delta: 0.076,  // spacing between concentric rings
+      beadSize: 0.062, // sized so 96 beads maintain clean separation without touching
+      frustum: 2.38,
+    };
+
+    const RING_RADII = {
+      '-3': RING_CONFIG.r0 - 1.5 * RING_CONFIG.delta,
+      '-1': RING_CONFIG.r0 - 0.5 * RING_CONFIG.delta,
+      '1': RING_CONFIG.r0 + 0.5 * RING_CONFIG.delta,
+      '3': RING_CONFIG.r0 + 1.5 * RING_CONFIG.delta,
+    };
+
+    const RING_CENTERS = {
+      Y: new THREE.Vector2(0, RING_CONFIG.D),
+      Z: new THREE.Vector2(-RING_CONFIG.D * Math.sqrt(3) / 2, -RING_CONFIG.D * 0.5),
+      X: new THREE.Vector2(RING_CONFIG.D * Math.sqrt(3) / 2, -RING_CONFIG.D * 0.5),
+    };
+
+    /** Solve intersection of circle 1 (c1, r1) and circle 2 (c2, r2). Returns [p1, p2] */
+    function circleIntersections(c1, r1, c2, r2) {
+      const dx = c2.x - c1.x;
+      const dy = c2.y - c1.y;
+      const d = Math.hypot(dx, dy);
+      if (d > r1 + r2 || d < Math.abs(r1 - r2) || d < 1e-6) return null;
+      const a = (r1 * r1 - r2 * r2 + d * d) / (2 * d);
+      const h = Math.sqrt(Math.max(0, r1 * r1 - a * a));
+      const xm = c1.x + a * dx / d;
+      const ym = c1.y + a * dy / d;
+      const nx = -dy / d;
+      const ny = dx / d;
+      return [
+        new THREE.Vector2(xm + h * nx, ym + h * ny),
+        new THREE.Vector2(xm - h * nx, ym - h * ny),
+      ];
+    }
+
+    /**
+     * Map (face, pieceCoord) to exact 2D intersection point in the four-ring system.
+     */
+    function calculateRestPosition(face, coord) {
+      let c1, c2, r1, r2, pickBranch;
+      if (face === 'U') {
+        c1 = RING_CENTERS.Z; r1 = RING_RADII[coord.z];
+        c2 = RING_CENTERS.X; r2 = RING_RADII[coord.x];
+        pickBranch = (pts) => pts[0];
+      } else if (face === 'D') {
+        c1 = RING_CENTERS.Z; r1 = RING_RADII[coord.z];
+        c2 = RING_CENTERS.X; r2 = RING_RADII[coord.x];
+        pickBranch = (pts) => pts[1];
+      } else if (face === 'L') {
+        c1 = RING_CENTERS.Y; r1 = RING_RADII[coord.y];
+        c2 = RING_CENTERS.Z; r2 = RING_RADII[coord.z];
+        pickBranch = (pts) => (pts[1].x < pts[0].x ? pts[1] : pts[0]);
+      } else if (face === 'R') {
+        c1 = RING_CENTERS.Y; r1 = RING_RADII[coord.y];
+        c2 = RING_CENTERS.Z; r2 = RING_RADII[coord.z];
+        pickBranch = (pts) => (pts[0].x > pts[1].x ? pts[0] : pts[1]);
+      } else if (face === 'B') {
+        c1 = RING_CENTERS.Y; r1 = RING_RADII[coord.y];
+        c2 = RING_CENTERS.X; r2 = RING_RADII[coord.x];
+        pickBranch = (pts) => (pts[0].x > pts[1].x ? pts[0] : pts[1]);
+      } else if (face === 'F') {
+        c1 = RING_CENTERS.Y; r1 = RING_RADII[coord.y];
+        c2 = RING_CENTERS.X; r2 = RING_RADII[coord.x];
+        pickBranch = (pts) => (pts[1].x < pts[0].x ? pts[1] : pts[0]);
+      }
+
+      if (!r1 || !r2) return new THREE.Vector2(0, 0);
+      const pts = circleIntersections(c1, r1, c2, r2);
+      if (!pts) return new THREE.Vector2(0, 0);
+      return pickBranch(pts);
+    }
+
+    // ------------------------------------------------------------- Textures & Sprites
+    function drawFaceSymbol(ctx, face, cx, cy, size) {
+      const shape = FACE_SYMBOLS[face] || 'circle';
+      const fgColor = SYMBOL_COLORS[face] || '#ffffff';
+      const shadowColor = (fgColor === '#111111') ? 'rgba(255, 255, 255, 0.9)' : 'rgba(0, 0, 0, 0.7)';
+
+      ctx.save();
+      ctx.translate(cx, cy);
+
+      if (shape === 'circle') {
+        ctx.beginPath();
+        ctx.arc(0, 0, size * 0.44, 0, Math.PI * 2);
+        ctx.lineWidth = 5;
+        ctx.strokeStyle = shadowColor;
+        ctx.stroke();
+        ctx.lineWidth = 3.2;
+        ctx.strokeStyle = fgColor;
+        ctx.stroke();
+      } else if (shape === 'dot') {
+        ctx.beginPath();
+        ctx.arc(0, 0, size * 0.40, 0, Math.PI * 2);
+        ctx.fillStyle = shadowColor;
+        ctx.fill();
+        ctx.beginPath();
+        ctx.arc(0, 0, size * 0.36, 0, Math.PI * 2);
+        ctx.fillStyle = fgColor;
+        ctx.fill();
+      } else if (shape === 'cross') {
+        const w = size * 0.76;
+        const th = size * 0.22;
+        ctx.shadowColor = shadowColor;
+        ctx.shadowBlur = 6;
+        ctx.fillStyle = fgColor;
+        ctx.fillRect(-w / 2, -th / 2, w, th);
+        ctx.fillRect(-th / 2, -w / 2, th, w);
+      } else if (shape === 'triangle') {
+        const r = size * 0.54;
+        ctx.beginPath();
+        ctx.moveTo(0, -r);
+        ctx.lineTo(r * 0.866, r * 0.5);
+        ctx.lineTo(-r * 0.866, r * 0.5);
+        ctx.closePath();
+        ctx.lineWidth = 5.5;
+        ctx.strokeStyle = shadowColor;
+        ctx.stroke();
+        ctx.lineWidth = 3.2;
+        ctx.strokeStyle = fgColor;
+        ctx.stroke();
+      } else if (shape === 'square') {
+        const hs = size * 0.36;
+        ctx.beginPath();
+        ctx.rect(-hs, -hs, hs * 2, hs * 2);
+        ctx.lineWidth = 5.5;
+        ctx.strokeStyle = shadowColor;
+        ctx.stroke();
+        ctx.lineWidth = 3.2;
+        ctx.strokeStyle = fgColor;
+        ctx.stroke();
+      } else if (shape === 'star') {
+        const spikes = 5;
+        const outerRadius = size * 0.52;
+        const innerRadius = size * 0.24;
+        function starPath() {
+          ctx.beginPath();
+          let rot = (Math.PI / 2) * 3;
+          let step = Math.PI / spikes;
+          ctx.moveTo(0, -outerRadius);
+          for (let i = 0; i < spikes; i++) {
+            let x = Math.cos(rot) * outerRadius;
+            let y = Math.sin(rot) * outerRadius;
+            ctx.lineTo(x, y);
+            rot += step;
+            x = Math.cos(rot) * innerRadius;
+            y = Math.sin(rot) * innerRadius;
+            ctx.lineTo(x, y);
+            rot += step;
+          }
+          ctx.lineTo(0, -outerRadius);
+          ctx.closePath();
+        }
+        starPath();
+        ctx.lineWidth = 5.5;
+        ctx.strokeStyle = shadowColor;
+        ctx.stroke();
+        ctx.fillStyle = fgColor;
+        ctx.fill();
+      }
+      ctx.restore();
+    }
+
+    /** Glossy 3D-shaded bead sprite */
+    function createBeadTexture() {
+      const s = 128;
+      const c = document.createElement('canvas');
+      c.width = c.height = s;
+      const g = c.getContext('2d');
+
+      const grad = g.createRadialGradient(s * 0.35, s * 0.35, s * 0.05, s * 0.5, s * 0.5, s * 0.48);
+      grad.addColorStop(0, 'rgba(255,255,255,0.95)');
+      grad.addColorStop(0.35, 'rgba(255,255,255,0.75)');
+      grad.addColorStop(0.7, 'rgba(180,180,180,0.4)');
+      grad.addColorStop(1, 'rgba(0,0,0,0.85)');
+
+      g.fillStyle = grad;
+      g.beginPath();
+      g.arc(s / 2, s / 2, s * 0.47, 0, Math.PI * 2);
+      g.fill();
+
+      const tex = new THREE.CanvasTexture(c);
+      tex.colorSpace = THREE.SRGBColorSpace;
+      return tex;
+    }
+
+    /** Flat color-blind bead texture: solid flat color disc */
+    function createColorBlindBeadTexture(face) {
+      const s = 128;
+      const c = document.createElement('canvas');
+      c.width = c.height = s;
+      const g = c.getContext('2d');
+
+      const baseColor = FACE_HEX_STRINGS[face];
+      const r = s * 0.47;
+
+      g.fillStyle = baseColor;
+      g.beginPath();
+      g.arc(s / 2, s / 2, r, 0, Math.PI * 2);
+      g.fill();
+
+      g.strokeStyle = 'rgba(0, 0, 0, 0.25)';
+      g.lineWidth = 3;
+      g.stroke();
+
+      drawFaceSymbol(g, face, s / 2, s / 2, s * 0.40);
+
+      const tex = new THREE.CanvasTexture(c);
+      tex.colorSpace = THREE.SRGBColorSpace;
+      return tex;
+    }
+
+    /** Rounded sticker texture for 3D cubies */
+    function createStickerTexture() {
+      const s = 128;
+      const c = document.createElement('canvas');
+      c.width = c.height = s;
+      const g = c.getContext('2d');
+      const r = s * 0.18;
+      const p = s * 0.06;
+      g.fillStyle = '#ffffff';
+      g.beginPath();
+      g.moveTo(p + r, p);
+      g.arcTo(s - p, p, s - p, s - p, r);
+      g.arcTo(s - p, s - p, p, s - p, r);
+      g.arcTo(p, s - p, p, p, r);
+      g.arcTo(p, p, s - p, p, r);
+      g.closePath();
+      g.fill();
+      const tex = new THREE.CanvasTexture(c);
+      tex.colorSpace = THREE.SRGBColorSpace;
+      return tex;
+    }
+
+    /** Rounded sticker texture with face color and high-contrast symbol */
+    function createColorBlindStickerTexture(face) {
+      const s = 128;
+      const c = document.createElement('canvas');
+      c.width = c.height = s;
+      const g = c.getContext('2d');
+      const r = s * 0.18;
+      const p = s * 0.06;
+
+      g.fillStyle = FACE_HEX_STRINGS[face];
+      g.beginPath();
+      g.moveTo(p + r, p);
+      g.arcTo(s - p, p, s - p, s - p, r);
+      g.arcTo(s - p, s - p, p, s - p, r);
+      g.arcTo(p, s - p, p, p, r);
+      g.arcTo(p, p, s - p, p, r);
+      g.closePath();
+      g.fill();
+
+      g.strokeStyle = 'rgba(0, 0, 0, 0.2)';
+      g.lineWidth = 3;
+      g.stroke();
+
+      drawFaceSymbol(g, face, s / 2, s / 2, s * 0.44);
+
+      const tex = new THREE.CanvasTexture(c);
+      tex.colorSpace = THREE.SRGBColorSpace;
+      return tex;
+    }
+
+    // ------------------------------------------------------------- 3D Solid 4x4 Rubik's Cube
+    class RubiksCube {
+      constructor() {
+        this.root = new THREE.Group();
+        this.pieces = [];
+        this.stickers = [];
+        this.views = [];
+
+        this._stickerTex = createStickerTexture();
+        this._colorBlindStickerTex = {};
+        for (const f of FACES) {
+          this._colorBlindStickerTex[f] = createColorBlindStickerTexture(f);
+        }
+        this._isColorBlind = false;
+
+        this._build();
+      }
+
+      addView(view) {
+        this.views.push(view);
+        view.sync();
+      }
+
+      setColorBlindMode(enabled) {
+        this._isColorBlind = !!enabled;
+        for (const f of FACES) {
+          if (this.stickerMats[f]) {
+            if (this._isColorBlind) {
+              this.stickerMats[f].map = this._colorBlindStickerTex[f];
+              this.stickerMats[f].color.setHex(0xffffff);
+            } else {
+              this.stickerMats[f].map = this._stickerTex;
+              this.stickerMats[f].color.setHex(COLORS[f]);
+            }
+            this.stickerMats[f].needsUpdate = true;
+          }
+        }
+      }
+
+      _build() {
+        // Piece visual scaling for 4x4
+        const pieceSize = 0.70;
+        const bodyGeo = new THREE.BoxGeometry(pieceSize, pieceSize, pieceSize);
+        const bodyMat = new THREE.MeshStandardMaterial({
+          color: THEME.cubieBody,
+          roughness: 0.65,
+          metalness: 0.08,
+        });
+        const stickerGeo = new THREE.PlaneGeometry(pieceSize * 0.85, pieceSize * 0.85);
+
+        this.stickerMats = {};
+        for (const f of FACES) {
+          this.stickerMats[f] = new THREE.MeshStandardMaterial({
+            color: this._isColorBlind ? 0xffffff : COLORS[f],
+            map: this._isColorBlind ? this._colorBlindStickerTex[f] : this._stickerTex,
+            transparent: true,
+            alphaTest: 0.35,
+            roughness: 0.38,
+            metalness: 0.02,
+          });
+        }
+
+        const COORDS = [-3, -1, 1, 3];
+        for (const x of COORDS) {
+          for (const y of COORDS) {
+            for (const z of COORDS) {
+              if (Math.abs(x) < 3 && Math.abs(y) < 3 && Math.abs(z) < 3) continue;
+
+              const home = new THREE.Vector3(x, y, z);
+              const solid = new THREE.Group();
+              solid.add(new THREE.Mesh(bodyGeo, bodyMat));
+
+              const piece = {
+                home,
+                coord: home.clone(),
+                quat: new THREE.Quaternion(),
+                solid,
+              };
+
+              for (const f of FACES) {
+                const n = NORMALS[f];
+                if (home.dot(n) !== 3) continue;
+
+                const mesh = new THREE.Mesh(stickerGeo, this.stickerMats[f]);
+                mesh.position.copy(n).multiplyScalar(pieceSize * 0.502);
+                mesh.lookAt(mesh.position.clone().add(n));
+                solid.add(mesh);
+
+                this.stickers.push({
+                  piece,
+                  local: n.clone(),
+                  home: f,
+                  color: COLORS[f],
+                });
+              }
+
+              this._placePiece(piece);
+              this.root.add(solid);
+              this.pieces.push(piece);
+            }
+          }
+        }
+      }
+
+      _placePiece(piece) {
+        // Distance per grid unit = 0.36
+        piece.solid.position.copy(piece.coord).multiplyScalar(0.36);
+        piece.solid.quaternion.copy(piece.quat);
+      }
+
+      stickerFace(sticker) {
+        const n = sticker.local.clone().applyQuaternion(sticker.piece.quat).round();
+        return faceOfNormal(n);
+      }
+
+      layerPieces(moveName) {
+        // Outer moves
+        if (moveName === 'U') return this.pieces.filter((p) => p.coord.y === 3);
+        if (moveName === 'D') return this.pieces.filter((p) => p.coord.y === -3);
+        if (moveName === 'R') return this.pieces.filter((p) => p.coord.x === 3);
+        if (moveName === 'L') return this.pieces.filter((p) => p.coord.x === -3);
+        if (moveName === 'F') return this.pieces.filter((p) => p.coord.z === 3);
+        if (moveName === 'B') return this.pieces.filter((p) => p.coord.z === -3);
+
+        // Wide double-layer moves
+        if (moveName === 'Uw') return this.pieces.filter((p) => p.coord.y > 0);
+        if (moveName === 'Dw') return this.pieces.filter((p) => p.coord.y < 0);
+        if (moveName === 'Rw') return this.pieces.filter((p) => p.coord.x > 0);
+        if (moveName === 'Lw') return this.pieces.filter((p) => p.coord.x < 0);
+        if (moveName === 'Fw') return this.pieces.filter((p) => p.coord.z > 0);
+        if (moveName === 'Bw') return this.pieces.filter((p) => p.coord.z < 0);
+
+        return [];
+      }
+
+      beginMove(face, turns) {
+        let axis;
+        const baseFace = face.replace('w', '');
+        axis = NORMALS[baseFace];
+
+        const angle = (-Math.PI / 2) * turns;
+        const members = this.layerPieces(face);
+
+        const pivot = new THREE.Group();
+        this.root.add(pivot);
+        for (const p of members) pivot.attach(p.solid);
+
+        const subs = this.views.map((v) => v.beginMove(face, turns));
+
+        let isFinished = false;
+        return {
+          face,
+          turns,
+          setProgress: (t) => {
+            pivot.setRotationFromAxisAngle(axis, angle * t);
+            for (const s of subs) s.setProgress(t);
+          },
+          finish: () => {
+            if (isFinished) return;
+            isFinished = true;
+            const q = new THREE.Quaternion().setFromAxisAngle(axis, angle);
+            for (const p of members) {
+              p.coord.applyQuaternion(q).round();
+              p.quat.premultiply(q).normalize();
+              this.root.attach(p.solid);
+              this._placePiece(p);
+            }
+            this.root.remove(pivot);
+            for (const s of subs) s.finish();
+          },
+        };
+      }
+
+      applyMove(face, turns) {
+        const handle = this.beginMove(face, turns);
+        handle.finish();
+      }
+
+      reset() {
+        for (const p of this.pieces) {
+          p.coord.copy(p.home);
+          p.quat.identity();
+          this._placePiece(p);
+        }
+        for (const v of this.views) v.sync();
+      }
+
+      isSolved() {
+        return this.pieces.every(
+          (p) => p.coord.equals(p.home) && Math.abs(p.quat.w) > 0.9999
+        );
+      }
+    }
+
+    // ------------------------------------------------------------- 2D Four-Ring System
+    class FourRingDiagram {
+      constructor(cube) {
+        this.cube = cube;
+        this.scene = new THREE.Scene();
+        this.camera = new THREE.OrthographicCamera(-1, 1, 1, -1, 0.1, 20);
+        this.camera.position.set(0, 0, 5);
+
+        this._defaultBeadTex = createBeadTexture();
+        this._colorBlindBeadTex = {};
+        for (const f of FACES) {
+          this._colorBlindBeadTex[f] = createColorBlindBeadTexture(f);
+        }
+        this._isColorBlind = false;
+
+        this.rings = [];
+        this.dots = new Map();
+        this.activeMove = null;
+
+        this._buildRings();
+        this._buildDots();
+        this.resize(window.innerWidth, window.innerHeight);
+      }
+
+      setColorBlindMode(enabled) {
+        this._isColorBlind = !!enabled;
+        for (const f of FACES) {
+          if (this.beadMats[f]) {
+            if (this._isColorBlind) {
+              this.beadMats[f].map = this._colorBlindBeadTex[f];
+              this.beadMats[f].color.setHex(0xffffff);
+            } else {
+              this.beadMats[f].map = this._defaultBeadTex;
+              this.beadMats[f].color.setHex(COLORS[f]);
+            }
+            this.beadMats[f].needsUpdate = true;
+          }
+        }
+      }
+
+      _buildRings() {
+        const segments = 160;
+        const axes = ['Y', 'Z', 'X'];
+        const slices = [-3, -1, 1, 3];
+
+        for (const axis of axes) {
+          const center = RING_CENTERS[axis];
+          for (const slice of slices) {
+            const radius = RING_RADII[slice];
+            const pts = [];
+            for (let i = 0; i <= segments; i++) {
+              const th = (i / segments) * Math.PI * 2;
+              pts.push(new THREE.Vector3(Math.cos(th) * radius, Math.sin(th) * radius, 0));
+            }
+            const geo = new THREE.BufferGeometry().setFromPoints(pts);
+
+            const mat = new THREE.LineBasicMaterial({
+              color: THEME.ringInactive,
+              transparent: true,
+              opacity: 0.32,
+            });
+            const line = new THREE.Line(geo, mat);
+            line.position.set(center.x, center.y, 0);
+            this.scene.add(line);
+
+            const glowMat = new THREE.LineBasicMaterial({
+              color: THEME.ringActive,
+              transparent: true,
+              opacity: 0.0,
+            });
+            const glowLine = new THREE.Line(geo, glowMat);
+            glowLine.position.set(center.x, center.y, 0.02);
+            this.scene.add(glowLine);
+
+            this.rings.push({ axis, slice, line, glowLine, mat, glowMat, center, radius });
+          }
+        }
+      }
+
+      _buildDots() {
+        const geo = new THREE.PlaneGeometry(RING_CONFIG.beadSize, RING_CONFIG.beadSize);
+        this.beadMats = {};
+        for (const f of FACES) {
+          this.beadMats[f] = new THREE.MeshBasicMaterial({
+            color: this._isColorBlind ? 0xffffff : COLORS[f],
+            map: this._isColorBlind ? this._colorBlindBeadTex[f] : this._defaultBeadTex,
+            transparent: true,
+            depthWrite: false,
+          });
+        }
+
+        for (const sticker of this.cube.stickers) {
+          const mesh = new THREE.Mesh(geo, this.beadMats[sticker.home]);
+          mesh.position.z = 0.05;
+          this.scene.add(mesh);
+          this.dots.set(sticker, mesh);
+        }
+      }
+
+      resize(width, height) {
+        const aspect = width / height;
+        const f = RING_CONFIG.frustum;
+        const halfW = aspect >= 1 ? f * aspect : f;
+        const halfH = aspect >= 1 ? f : f / aspect;
+        this.camera.left = -halfW;
+        this.camera.right = halfW;
+        this.camera.top = halfH;
+        this.camera.bottom = -halfH;
+        this.camera.updateProjectionMatrix();
+      }
+
+      sync() {
+        for (const [sticker, mesh] of this.dots) {
+          const currentFace = this.cube.stickerFace(sticker);
+          const p = calculateRestPosition(currentFace, sticker.piece.coord);
+          mesh.position.set(p.x, p.y, mesh.position.z);
+        }
+      }
+
+      setRingHighlight(axis, slice, on) {
+        for (const r of this.rings) {
+          if (r.axis === axis && (slice === 'all' || r.slice === slice)) {
+            r.glowMat.opacity = on ? 1.0 : 0.0;
+            r.mat.color.setHex(on ? THEME.ringActive : THEME.ringInactive);
+            r.mat.opacity = on ? 0.95 : 0.32;
+          }
+        }
+      }
+
+      beginMove(face, turns) {
+        const axisMap = {
+          U: { axis: 'Y', slices: [3] },
+          D: { axis: 'Y', slices: [-3] },
+          R: { axis: 'X', slices: [3] },
+          L: { axis: 'X', slices: [-3] },
+          F: { axis: 'Z', slices: [3] },
+          B: { axis: 'Z', slices: [-3] },
+          Uw: { axis: 'Y', slices: [1, 3] },
+          Dw: { axis: 'Y', slices: [-1, -3] },
+          Rw: { axis: 'X', slices: [1, 3] },
+          Lw: { axis: 'X', slices: [-1, -3] },
+          Fw: { axis: 'Z', slices: [1, 3] },
+          Bw: { axis: 'Z', slices: [-1, -3] },
+        };
+
+        const config = axisMap[face] || { axis: 'Y', slices: [3] };
+        for (const sl of config.slices) {
+          this.setRingHighlight(config.axis, sl, true);
+        }
+
+        const baseFace = face.replace('w', '');
+        const normal = NORMALS[baseFace];
+        const q = new THREE.Quaternion().setFromAxisAngle(normal, (-Math.PI / 2) * turns);
+
+        const animatedItems = [];
+        const members = this.cube.layerPieces(face);
+        const memberPieces = new Set(members);
+
+        for (const sticker of this.cube.stickers) {
+          if (!memberPieces.has(sticker.piece)) continue;
+
+          const coord = sticker.piece.coord;
+          const mesh = this.dots.get(sticker);
+          const fromFace = this.cube.stickerFace(sticker);
+          const startPos = calculateRestPosition(fromFace, coord);
+
+          const nextCoord = coord.clone().applyQuaternion(q).round();
+          const nextNormal = sticker.local.clone().applyQuaternion(sticker.piece.quat).applyQuaternion(q).round();
+          const toFace = faceOfNormal(nextNormal);
+          const endPos = calculateRestPosition(toFace, nextCoord);
+
+          animatedItems.push({ mesh, startPos, endPos });
+        }
+
+        return {
+          setProgress: (t) => {
+            for (const item of animatedItems) {
+              const x = item.startPos.x + (item.endPos.x - item.startPos.x) * t;
+              const y = item.startPos.y + (item.endPos.y - item.startPos.y) * t;
+              item.mesh.position.set(x, y, item.mesh.position.z);
+            }
+          },
+          finish: () => {
+            for (const sl of config.slices) {
+              this.setRingHighlight(config.axis, sl, false);
+            }
+            this.sync();
+          },
+        };
+      }
+    }
+
+    // ------------------------------------------------------------- Move Engine
+    class MoveEngine {
+      constructor(cube) {
+        this.cube = cube;
+        this.queue = [];
+        this.active = null;
+        this.elapsed = 0;
+        this.speed = 1.0;
+        this.history = [];
+        this.onMove = null;
+        this.onHistoryChange = null;
+        this.isScrambling = false;
+      }
+
+      get busy() {
+        return this.active !== null || this.queue.length > 0;
+      }
+
+      push(move, source = 'user') {
+        if (!move) return false;
+        this.queue.push({ ...move, source });
+        return true;
+      }
+
+      _recordFinished(move) {
+        if (move.source === 'user' || move.source === 'scramble') {
+          this.history.push({ face: move.face, turns: move.turns });
+        } else if (move.source === 'rollback' && Number.isInteger(move.retires)) {
+          this.history.length = Math.max(0, this.history.length - move.retires);
+        }
+        if (this.onHistoryChange) this.onHistoryChange();
+      }
+
+      pushSequence(tokens, source = 'user') {
+        for (const t of tokens) {
+          const m = this.parseMove(t);
+          if (m) this.push(m, source);
+        }
+      }
+
+      parseMove(token) {
+        token = token.trim();
+        if (!token) return null;
+        let face = token;
+        let turns = 1;
+        if (token.includes("'")) {
+          turns = -1;
+          face = token.replace("'", '');
+        } else if (token.includes('2')) {
+          turns = 2;
+          face = token.replace('2', '');
+        }
+        return { face, turns };
+      }
+
+      formatMove(move) {
+        if (move.turns === 1) return move.face;
+        if (move.turns === -1) return move.face + "'";
+        if (move.turns === 2 || move.turns === -2) return move.face + '2';
+        return move.face;
+      }
+
+      invert(move) {
+        return { face: move.face, turns: -move.turns };
+      }
+
+      flushPending() {
+        while (this.queue.length > 0) {
+          const next = this.queue.shift();
+          this.cube.applyMove(next.face, next.turns);
+          this._recordFinished(next);
+        }
+        if (this.active) {
+          this.active.handle.finish();
+          this._recordFinished(this.active.move);
+          this.active = null;
+        }
+        this.isScrambling = false;
+      }
+
+      undo() {
+        this.flushPending();
+        if (this.history.length === 0) return;
+        const last = this.history[this.history.length - 1];
+        const inv = this.invert(last);
+        this.push({ ...inv, retires: 1 }, 'rollback');
+      }
+
+      rollbackTo(targetLength) {
+        this.flushPending();
+        const curLen = this.history.length;
+        if (targetLength >= curLen || targetLength < 0) return;
+
+        const countToUndo = curLen - targetLength;
+        const movesToUndo = this.history.slice(targetLength).reverse();
+
+        for (let i = 0; i < movesToUndo.length; i++) {
+          const inv = this.invert(movesToUndo[i]);
+          this.push({ ...inv, retires: 1 }, 'rollback');
+        }
+      }
+
+      scramble(seq) {
+        this.flushPending();
+        this.isScrambling = true;
+        const tokens = typeof seq === 'string' ? seq.trim().split(/\s+/) : [];
+        if (tokens.length > 0) {
+          this.pushSequence(tokens, 'scramble');
+          return;
+        }
+        const moves = ['U', 'D', 'L', 'R', 'F', 'B', 'Uw', 'Dw', 'Rw', 'Lw', 'Fw', 'Bw'];
+        let lastBase = '';
+        for (let i = 0; i < 28; i++) {
+          let m = moves[Math.floor(Math.random() * moves.length)];
+          let base = m[0];
+          while (base === lastBase) {
+            m = moves[Math.floor(Math.random() * moves.length)];
+            base = m[0];
+          }
+          lastBase = base;
+          const turns = [1, -1, 2][Math.floor(Math.random() * 3)];
+          this.push({ face: m, turns }, 'scramble');
+        }
+      }
+
+      solve() {
+        this.flushPending();
+        if (this.history.length === 0) return;
+
+        const rawInverted = this.history.slice().reverse().map((m) => this.invert(m));
+        const totalMoves = this.history.length;
+        for (let i = 0; i < rawInverted.length; i++) {
+          const move = rawInverted[i];
+          const retires = (i === 0) ? totalMoves : 0;
+          this.push({ ...move, retires }, 'rollback');
+        }
+      }
+
+      clear() {
+        this.queue.length = 0;
+        this.isScrambling = false;
+        if (this.active) {
+          this.active.handle.finish();
+          this.active = null;
+        }
+        this.history.length = 0;
+        this.cube.reset();
+        if (this.onHistoryChange) this.onHistoryChange();
+      }
+
+      update(dt) {
+        if (!this.active) {
+          const next = this.queue.shift();
+          if (!next) return;
+          this.active = {
+            move: next,
+            handle: this.cube.beginMove(next.face, next.turns),
+          };
+          this.elapsed = 0;
+        }
+
+        const { move, handle } = this.active;
+        const baseDuration = (move.source === 'scramble' || move.source === 'rollback') ? 0.12 : 0.35;
+        const duration = Math.max(0.04, ((baseDuration * (move.turns === 2 ? 1.5 : 1)) / Math.max(0.1, this.speed)));
+        this.elapsed += dt;
+        const t = Math.min(1, this.elapsed / duration);
+        const ease = t < 0.5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2;
+        handle.setProgress(ease);
+
+        if (t >= 1) {
+          this.active = null;
+          handle.finish();
+          this._recordFinished(move);
+          if (this.queue.length === 0 && this.isScrambling) {
+            this.isScrambling = false;
+          }
+          if (this.onMove) this.onMove(move);
+        }
+      }
+    }
+
+    // ------------------------------------------------------------- Setup Application
+    const container = document.getElementById('app');
+    const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false });
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    renderer.setClearColor(THEME.background, 1);
+    renderer.autoClear = false;
+    container.appendChild(renderer.domElement);
+
+    const scene3D = new THREE.Scene();
+    scene3D.background = new THREE.Color(THEME.background);
+
+    const camera3D = new THREE.PerspectiveCamera(38, 1, 0.1, 100);
+    camera3D.position.set(5.2, 4.4, 6.2);
+
+    const controls = new OrbitControls(camera3D, renderer.domElement);
+    controls.enableDamping = true;
+    controls.dampingFactor = 0.08;
+    controls.minDistance = 3.5;
+    controls.maxDistance = 18;
+    controls.target.set(0, 0, 0);
+
+    const hemi = new THREE.HemisphereLight(0xffffff, 0x141e1c, 1.25);
+    scene3D.add(hemi);
+
+    const dirLight1 = new THREE.DirectionalLight(0xffffff, 1.6);
+    dirLight1.position.set(8, 14, 10);
+    scene3D.add(dirLight1);
+
+    const dirLight2 = new THREE.DirectionalLight(0x6fe3c6, 0.45);
+    dirLight2.position.set(-8, -6, -6);
+    scene3D.add(dirLight2);
+
+    const cube = new RubiksCube();
+    scene3D.add(cube.root);
+
+    const diagram = new FourRingDiagram(cube);
+    cube.addView(diagram);
+
+    const engine = new MoveEngine(cube);
+
+    // ------------------------------------------------------------- UI Bindings
+    const movesContainer = document.getElementById('moves');
+    const moveDefs = [
+      { face: 'U', turns: 1, label: 'U' },
+      { face: 'U', turns: -1, label: "U'" },
+      { face: 'D', turns: 1, label: 'D' },
+      { face: 'D', turns: -1, label: "D'" },
+      { face: 'F', turns: 1, label: 'F' },
+      { face: 'F', turns: -1, label: "F'" },
+      { face: 'B', turns: 1, label: 'B' },
+      { face: 'B', turns: -1, label: "B'" },
+      { face: 'R', turns: 1, label: 'R' },
+      { face: 'R', turns: -1, label: "R'" },
+      { face: 'L', turns: 1, label: 'L' },
+      { face: 'L', turns: -1, label: "L'" },
+    ];
+
+    for (const m of moveDefs) {
+      const btn = document.createElement('button');
+      btn.className = 'move-btn';
+      btn.dataset.face = m.face;
+      btn.dataset.turns = m.turns;
+      btn.textContent = m.label;
+      btn.addEventListener('click', () => {
+        engine.push({ face: m.face, turns: m.turns }, 'user');
+      });
+      movesContainer.appendChild(btn);
+    }
+
+    const wideContainer = document.getElementById('wideMoves');
+    const wideDefs = [
+      { face: 'Uw', turns: 1, label: 'Uw' },
+      { face: 'Uw', turns: -1, label: "Uw'" },
+      { face: 'Dw', turns: 1, label: 'Dw' },
+      { face: 'Dw', turns: -1, label: "Dw'" },
+      { face: 'Rw', turns: 1, label: 'Rw' },
+      { face: 'Rw', turns: -1, label: "Rw'" },
+      { face: 'Lw', turns: 1, label: 'Lw' },
+      { face: 'Lw', turns: -1, label: "Lw'" },
+      { face: 'Fw', turns: 1, label: 'Fw' },
+      { face: 'Fw', turns: -1, label: "Fw'" },
+      { face: 'Bw', turns: 1, label: 'Bw' },
+      { face: 'Bw', turns: -1, label: "Bw'" },
+    ];
+
+    for (const m of wideDefs) {
+      const btn = document.createElement('button');
+      btn.className = 'move-btn';
+      btn.dataset.face = m.face;
+      btn.dataset.turns = m.turns;
+      btn.textContent = m.label;
+      btn.addEventListener('click', () => {
+        engine.push({ face: m.face, turns: m.turns }, 'user');
+      });
+      wideContainer.appendChild(btn);
+    }
+
+    const historyBox = document.getElementById('historyBox');
+    const historyCount = document.getElementById('historyCount');
+
+    function renderHistoryUI() {
+      historyCount.textContent = `${engine.history.length} moves`;
+      if (engine.history.length === 0) {
+        historyBox.innerHTML = '<div class="history-empty">暂无步骤 · No moves yet</div>';
+        return;
+      }
+      let html = `<button class="hist-chip hist-start" data-rollback="0" title="回退到初始状态 (Roll back to start)">⏮ 0: 初始</button>`;
+      for (let i = 0; i < engine.history.length; i++) {
+        const m = engine.history[i];
+        const notation = engine.formatMove(m);
+        const isActive = (i === engine.history.length - 1) ? ' active' : '';
+        html += `<button class="hist-chip${isActive}" data-rollback="${i + 1}" data-face="${m.face}" title="点击回退到第 ${i + 1} 步 (${notation})">${i + 1}. ${notation}</button>`;
+      }
+      historyBox.innerHTML = html;
+      historyBox.scrollTop = historyBox.scrollHeight;
+
+      historyBox.querySelectorAll('.hist-chip').forEach((btn) => {
+        btn.addEventListener('click', () => {
+          const step = parseInt(btn.dataset.rollback, 10);
+          if (!isNaN(step)) engine.rollbackTo(step);
+        });
+      });
+    }
+
+    engine.onHistoryChange = () => {
+      renderHistoryUI();
+      const isSolved = cube.isSolved();
+      const statusText = document.getElementById('scrambleStatusText');
+      if (statusText) {
+        statusText.textContent = isSolved
+          ? '🎉 当前魔方已处于完全复原状态 · Cube Solved!'
+          : `⚡ 魔方正在探索中 (已走 ${engine.history.length} 步)`;
+      }
+    };
+
+    engine.onMove = (move) => {
+      const ticker = document.getElementById('ticker');
+      if (ticker) ticker.textContent = engine.formatMove(move);
+    };
+
+    // Actions
+    document.querySelectorAll('[data-act]').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        const act = btn.dataset.act;
+        if (act === 'scramble') engine.scramble();
+        else if (act === 'solve') engine.solve();
+        else if (act === 'undo') engine.undo();
+        else if (act === 'reset') {
+          engine.clear();
+          const ticker = document.getElementById('ticker');
+          if (ticker) ticker.textContent = 'READY';
+        }
+      });
+    });
+
+    // View Modes
+    let viewMode = 'both';
+    document.querySelectorAll('#view-mode button').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        document.querySelectorAll('#view-mode button').forEach((b) => b.classList.remove('active'));
+        btn.classList.add('active');
+        viewMode = btn.dataset.view;
+        onResize();
+      });
+    });
+
+    // Method Tabs
+    document.querySelectorAll('#methodTabs .tab').forEach((tab) => {
+      tab.addEventListener('click', () => {
+        document.querySelectorAll('#methodTabs .tab').forEach((t) => t.classList.remove('active'));
+        document.querySelectorAll('#methods-panel .tab-content').forEach((c) => c.classList.remove('active'));
+        tab.classList.add('active');
+        const target = document.getElementById(`content-${tab.dataset.tab}`);
+        if (target) target.classList.add('active');
+      });
+    });
+
+    // Run Alg Buttons
+    document.querySelectorAll('.btn-run').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        const alg = btn.dataset.alg;
+        if (alg) engine.pushSequence(alg.split(/\s+/), 'user');
+      });
+    });
+
+    // Color Blind Mode Toggle
+    const colorBlindToggle = document.getElementById('color-blind-toggle');
+    if (colorBlindToggle) {
+      colorBlindToggle.addEventListener('change', (e) => {
+        const enabled = e.target.checked;
+        cube.setColorBlindMode(enabled);
+        diagram.setColorBlindMode(enabled);
+        document.body.classList.toggle('color-blind-mode', enabled);
+      });
+    }
+
+    // Speed Slider & Auto Rotate
+    const speedSlider = document.getElementById('speed');
+    const speedVal = document.getElementById('speed-val');
+    if (speedSlider) {
+      speedSlider.addEventListener('input', (e) => {
+        const v = parseFloat(e.target.value);
+        engine.speed = v;
+        if (speedVal) speedVal.textContent = `${v.toFixed(2)}×`;
+      });
+    }
+
+    const autoRotateCb = document.getElementById('auto-rotate');
+    if (autoRotateCb) {
+      autoRotateCb.addEventListener('change', (e) => {
+        controls.autoRotate = e.target.checked;
+        controls.autoRotateSpeed = 1.6;
+      });
+    }
+
+    // Toggle Methods Panel Collapse
+    const toggleMethodsBtn = document.getElementById('toggleMethods');
+    const methodsPanel = document.getElementById('methods-panel');
+    const toggleFloat = document.getElementById('toggleMethodsFloat');
+    if (toggleMethodsBtn) {
+      toggleMethodsBtn.addEventListener('click', () => {
+        const collapsed = methodsPanel.classList.toggle('collapsed');
+        toggleMethodsBtn.textContent = collapsed ? '+' : '−';
+        if (toggleFloat) toggleFloat.style.display = collapsed ? 'block' : 'none';
+      });
+    }
+    if (toggleFloat) {
+      toggleFloat.addEventListener('click', () => {
+        methodsPanel.classList.remove('collapsed');
+        if (toggleMethodsBtn) toggleMethodsBtn.textContent = '−';
+        toggleFloat.style.display = 'none';
+      });
+    }
+
+    // Update Solution Button
+    const btnUpdateSolution = document.getElementById('btnUpdateSolution');
+    if (btnUpdateSolution) {
+      btnUpdateSolution.addEventListener('click', (e) => {
+        e.stopPropagation();
+        const icon = btnUpdateSolution.querySelector('.btn-update-icon');
+        if (icon) {
+          icon.style.transform = 'rotate(360deg)';
+          setTimeout(() => { icon.style.transform = ''; }, 450);
+        }
+        const isSolved = cube.isSolved();
+        const statusText = document.getElementById('scrambleStatusText');
+        if (statusText) {
+          statusText.textContent = isSolved
+            ? '🎉 当前魔方已处于完全复原状态 · Cube Solved!'
+            : `⚡ 解法已实时同步 (当前已走 ${engine.history.length} 步)`;
+        }
+      });
+    }
+
+    // HUD Cube Controls (Hide, Corner, Edge, Face)
+    const hudCtrlBtns = {
+      hide: document.getElementById('hudBtnCtrlHide'),
+      corner: document.getElementById('hudBtnCtrlCorner'),
+      edge: document.getElementById('hudBtnCtrlLevel'),
+      face: document.getElementById('hudBtnCtrlFace'),
+    };
+
+    function setHudCtrlMode(mode) {
+      Object.entries(hudCtrlBtns).forEach(([k, btn]) => {
+        if (btn) btn.classList.toggle('active', k === mode);
+      });
+      const circleOverlay = document.getElementById('circleControlsOverlay');
+      if (circleOverlay) {
+        circleOverlay.style.display = (mode === 'hide' || viewMode === 'cube') ? 'none' : 'block';
+      }
+    }
+
+    if (hudCtrlBtns.hide) hudCtrlBtns.hide.addEventListener('click', () => setHudCtrlMode('hide'));
+    if (hudCtrlBtns.corner) hudCtrlBtns.corner.addEventListener('click', () => setHudCtrlMode('corner'));
+    if (hudCtrlBtns.edge) hudCtrlBtns.edge.addEventListener('click', () => setHudCtrlMode('edge'));
+    if (hudCtrlBtns.face) hudCtrlBtns.face.addEventListener('click', () => setHudCtrlMode('face'));
+
+    // Keyboard Shortcuts
+    window.addEventListener('keydown', (e) => {
+      if (e.target instanceof HTMLInputElement) return;
+      if (e.repeat) return;
+      const key = e.key.toUpperCase();
+      const validMoves = ['U', 'D', 'F', 'B', 'R', 'L'];
+      if (validMoves.includes(key)) {
+        const moveFace = key + (e.altKey ? 'w' : '');
+        const turns = e.shiftKey ? -1 : 1;
+        engine.push({ face: moveFace, turns }, 'user');
+        e.preventDefault();
+      }
+    });
+
+    // Circle Overlay Buttons
+    document.querySelectorAll('.circle-rot-btn').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        const face = btn.dataset.face;
+        const turns = parseInt(btn.dataset.turns, 10);
+        engine.push({ face, turns }, 'user');
+      });
+    });
+
+    function updateCircleControlsPosition() {
+      const container = document.getElementById('circleControlsOverlay');
+      if (!container) return;
+
+      if (viewMode === 'cube') {
+        container.style.display = 'none';
+        return;
+      }
+      container.style.display = 'block';
+
+      const w = window.innerWidth;
+      const h = window.innerHeight;
+      const topH = Math.floor(h * 0.50);
+      const leftW = viewMode === 'both' ? Math.floor(w * 0.50) : w;
+      const aspect = leftW / topH;
+      const f = RING_CONFIG.frustum;
+      const halfW = aspect >= 1 ? f * aspect : f;
+      const halfH = aspect >= 1 ? f : f / aspect;
+
+      const outerR = RING_CONFIG.r0 + 3 * RING_CONFIG.delta;
+      const innerR = RING_CONFIG.r0 - 3 * RING_CONFIG.delta;
+      const dAngOut = 65 * Math.PI / 180;
+      const dAngIn = 48 * Math.PI / 180;
+
+      const systems = [
+        {
+          name: 'Y',
+          cx: 0,
+          cy: RING_CONFIG.D,
+          apex: Math.PI / 2, // 90 deg (Top)
+          outerFace: 'U',
+          innerFace: 'D'
+        },
+        {
+          name: 'Z',
+          cx: -RING_CONFIG.D * Math.sqrt(3) / 2,
+          cy: -RING_CONFIG.D * 0.5,
+          apex: Math.PI * 7 / 6, // 210 deg (Bottom-Left)
+          outerFace: 'F',
+          innerFace: 'B'
+        },
+        {
+          name: 'X',
+          cx: RING_CONFIG.D * Math.sqrt(3) / 2,
+          cy: -RING_CONFIG.D * 0.5,
+          apex: Math.PI * 11 / 6, // 330 deg (Bottom-Right)
+          outerFace: 'R',
+          innerFace: 'L'
+        }
+      ];
+
+      const btnDefs = [];
+      for (const sys of systems) {
+        btnDefs.push({
+          id: `btn-rot-${sys.outerFace}-ccw`,
+          wx: sys.cx + outerR * Math.cos(sys.apex + dAngOut),
+          wy: sys.cy + outerR * Math.sin(sys.apex + dAngOut)
+        });
+        btnDefs.push({
+          id: `btn-rot-${sys.outerFace}-cw`,
+          wx: sys.cx + outerR * Math.cos(sys.apex - dAngOut),
+          wy: sys.cy + outerR * Math.sin(sys.apex - dAngOut)
+        });
+        btnDefs.push({
+          id: `btn-rot-${sys.innerFace}-ccw`,
+          wx: sys.cx + innerR * Math.cos(sys.apex + dAngIn),
+          wy: sys.cy + innerR * Math.sin(sys.apex + dAngIn)
+        });
+        btnDefs.push({
+          id: `btn-rot-${sys.innerFace}-cw`,
+          wx: sys.cx + innerR * Math.cos(sys.apex - dAngIn),
+          wy: sys.cy + innerR * Math.sin(sys.apex - dAngIn)
+        });
+      }
+
+      for (const b of btnDefs) {
+        const el = document.getElementById(b.id);
+        if (!el) continue;
+        const ndcX = b.wx / halfW;
+        const ndcY = b.wy / halfH;
+        const px = (ndcX + 1) * 0.5 * leftW;
+        const py = (1 - ndcY) * 0.5 * topH;
+        el.style.left = `${px}px`;
+        el.style.top = `${py}px`;
+      }
+    }
+
+    // ------------------------------------------------------------- Viewport Layout & Animation Loop
+    function drawViewport(left, bottom, width, height, scene, camera) {
+      renderer.setViewport(left, bottom, width, height);
+      renderer.setScissor(left, bottom, width, height);
+      renderer.setScissorTest(true);
+      renderer.render(scene, camera);
+    }
+
+    let lastTime = performance.now();
+    function animate() {
+      requestAnimationFrame(animate);
+
+      const now = performance.now();
+      const dt = Math.min(0.05, (now - lastTime) / 1000);
+      lastTime = now;
+
+      engine.update(dt);
+      controls.update();
+
+      const w = window.innerWidth;
+      const h = window.innerHeight;
+      const topH = Math.floor(h * 0.50);
+      const btmH = h - topH;
+      const leftW = Math.floor(w * 0.50);
+      const rightW = w - leftW;
+
+      renderer.setScissorTest(false);
+      renderer.clear();
+
+      if (viewMode === 'both') {
+        drawViewport(0, btmH, leftW, topH, diagram.scene, diagram.camera);
+        drawViewport(leftW, btmH, rightW, topH, scene3D, camera3D);
+      } else if (viewMode === 'cube') {
+        drawViewport(0, btmH, w, topH, scene3D, camera3D);
+      } else if (viewMode === 'circles') {
+        drawViewport(0, btmH, w, topH, diagram.scene, diagram.camera);
+      }
+    }
+
+    function onResize() {
+      const w = window.innerWidth;
+      const h = window.innerHeight;
+      renderer.setSize(w, h);
+
+      const topH = Math.floor(h * 0.50);
+      const leftW = Math.floor(w * 0.50);
+      const rightW = w - leftW;
+
+      if (viewMode === 'both') {
+        camera3D.aspect = rightW / topH;
+        diagram.resize(leftW, topH);
+      } else {
+        camera3D.aspect = w / topH;
+        diagram.resize(w, topH);
+      }
+      camera3D.updateProjectionMatrix();
+      updateCircleControlsPosition();
+    }
+
+    window.addEventListener('resize', onResize);
+    onResize();
+    animate();
+  </script>
+</body>
+</html>
