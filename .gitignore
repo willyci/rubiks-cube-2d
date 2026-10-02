@@ -1,0 +1,10 @@
+# Reference repositories (kept locally)
+Hobby_Rubiks-Cube-Circles-2d-Projection-Group-Graph-Theory/
+RubiksCubeControlWpf/
+
+# Dependency directories
+node_modules/
+
+# OS and temporary files
+.DS_Store
+Thumbs.db
